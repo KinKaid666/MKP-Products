@@ -2,15 +2,11 @@
 
 use strict ;
 use warnings;
-use charnames qw(:full);
-use Encode ;
-
-binmode STDOUT, ":encoding(UTF-8)" ;
-
 
 # normal use POSIX ;
 use Data::Dumper ;
 use Getopt::Long ;
+use POSIX ;
 use IO::Handle ;
 use Date::Manip ;
 use Date::Calc ;
@@ -22,9 +18,12 @@ use Cwd qw(abs_path) ;
 use lib &dirname(&abs_path($0)) . "/lib" ;
 use MKPTimer ;
 
-use constant SKUS_SELECT_STATEMENT => qq( select sku from skus where sku = ? ) ;
-use constant SKUS_UPDATE_STATEMENT => qq( update skus set vendor_name = ?, title = ?, description = ? where sku = ? ) ;
-use constant SKUS_INSERT_STATEMENT => qq( insert into skus ( sku, vendor_name, title, description ) value ( ?, ?, ?, ? ) ) ;
+use constant SKUS_SELECT_STATEMENT      => qq( select sku from skus where sku = ? ) ;
+use constant SKU_COSTS_SELECT_STATEMENT => qq( select sku from sku_costs where sku = ? and end_date is null ) ;
+
+use constant SKU_COSTS_UPDATE_STATEMENT => qq( update sku_costs set end_date = ? where sku = ? and (end_date is null or end_date > ?) ) ;
+use constant SKU_COSTS_DELETE_STATEMENT => qq( delete from sku_costs where sku = ? and start_date > ? ) ;
+use constant SKU_COSTS_INSERT_STATEMENT => qq( insert into sku_costs ( sku, cost, start_date ) value ( ?, ?, ? ) ) ;
 
 my %options ;
 $options{username} = 'mkp_loader'      ;
@@ -37,7 +36,6 @@ $options{debug}    = 0 ; # default
 
 &GetOptions(
     "database=s"     => \$options{database},
-    "email=s"        => \$options{email},
     "filename=s"     => \$options{filename},
     "print"          => \$options{print},
     "timing"         => sub { $options{timing}++ },
@@ -47,15 +45,14 @@ $options{debug}    = 0 ; # default
 
 die "You must provide a filename." if (not defined $options{filename}) ;
 
-my @skus ;
+my $sku_costs ;
 
 #
 # ingest file
 #
 # Example:
-# sku,vendor name,Title,Description
-# MKP-RR013,Wooster,"12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2"" and 6-1/2"" Covers - 12"" Length","12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2"" and 6-1/2"" Covers - 12"" Length"
-# MKP-RR308,Wooster,"12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2"" Jumbo-Koter Foam Roller Cover - 2 per Package","12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2"" Jumbo-Koter Foam Roller Cover - 2 per Package"
+# SKU,cost
+# 7A-8ANN-TPQI,17.58
 {
     my $timer = MKPTimer->new("File processing", *STDOUT, $options{timing}, 1) ;
     my $lineNumber = 0 ;
@@ -66,34 +63,39 @@ my @skus ;
         ++$lineNumber ;
 
         #
-        # Skip the default headers; there something
-        next if $line =~ m/.*sku.*/ ;
+        # in case it comes over as a dos file
+        $line =~ s/^(.*)\r$/$1/ ;
 
         #
-        # there are quotes around every field and sometimes some empty, unquote fields
-        #    First strip the leading and trailing quote
-        $line =~ s/^\"(.*)\"$/$1/ ;
-        #    Second if there are any empty fields (,,), make sure they are formatted correct (,"",)
-        $line =~ s/,,/,"",/g ;
-        #    lastly cut all the fields by ","
-        my @subs = split(/","/, $line) ;
+        # Skip the default headers; there something
+        next if $line =~ m/.*sku.*/ || $line =~ m/.*SKU.*/ ;
+
+        # breakdown the row
+        my @subs = split(/,/, $line) ;
+        my $elements = scalar @subs ;
 
         my $skuLine ;
-        $skuLine->{sku}         = $subs[0] ;
-        $skuLine->{vendor_name} = $subs[1] ;
-        $skuLine->{title}       = $subs[2] ;
-        $skuLine->{description} = $subs[3] ;
+        $skuLine->{sku}        = $subs[0] ;
+        $skuLine->{cost}       = $subs[1] ;
+        $skuLine->{start_date} = ( $elements > 2 ? $subs[2] : undef ) ;
 
-        die "invalid line $lineNumber : $line" if scalar @subs != 4 ;
+        die "invalid line $lineNumber : $line" if ( $elements < 2 or $elements > 3 ) ;
+        die "invalid date format on line $lineNumber : $line\n   REQUIRED: YYYY-MM-DD" if $elements > 2 and not ($skuLine->{start_date} =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) ;
 
-        print "Found on line " . $lineNumber . " SKU " . $skuLine->{sku} . " from vendor " . $skuLine->{vendor_name} . "\n" if $options{debug} > 1 ;
-        push @skus, $skuLine ;
+        print STDERR "skipping duplicate entry for " . $skuLine->{sku} . "\n" if $sku_costs->{$skuLine->{sku}} ;
+
+        print "Found on line " . $lineNumber . " SKU " . $skuLine->{sku} . "\n" if $options{debug} > 1 ;
+        $sku_costs->{$skuLine->{sku}} = $skuLine ;
     }
     close INPUTFILE;
     print "Process file containing $lineNumber line(s).\n" if $options{debug} > 0 ;
-    print "  -> Found " . @skus . " record(s).\n"        if $options{debug} > 0 ;
-    print "\@orders = " . Dumper(\@skus) . "\n"          if $options{debug} > 2 ;
+
+    # not sure why Perl won't let me do this inline
+    my @a = keys %$sku_costs ;
+    print "  -> Found " . scalar @a . " unique record(s).\n"     if $options{debug} > 0 ;
+    print "\$sku_costs = " . Dumper($sku_costs) . "\n\n"     if $options{debug} > 1 ;
 }
+
 
 # Connect to the database.
 my $dbh ;
@@ -111,28 +113,65 @@ my $dbh ;
 {
     my $timer = MKPTimer->new("INSERT", *STDOUT, $options{timing}, 1) ;
 
-    my $s_stmt = $dbh->prepare(${\SKUS_SELECT_STATEMENT}) ;
-    my $u_stmt = $dbh->prepare(${\SKUS_UPDATE_STATEMENT}) ;
-    my $i_stmt = $dbh->prepare(${\SKUS_INSERT_STATEMENT}) ;
-    foreach my $sku (@skus)
-    {
-        $s_stmt->execute( $sku->{sku} ) or die $DBI::errstr ;
+    my $sku_s_stmt = $dbh->prepare(${\SKUS_SELECT_STATEMENT}) ;
 
-        if( $s_stmt->rows > 0 )
+    my $s_stmt = $dbh->prepare(${\SKU_COSTS_SELECT_STATEMENT}) ;
+    my $u_stmt = $dbh->prepare(${\SKU_COSTS_UPDATE_STATEMENT}) ;
+    my $d_stmt = $dbh->prepare(${\SKU_COSTS_DELETE_STATEMENT}) ;
+    my $i_stmt = $dbh->prepare(${\SKU_COSTS_INSERT_STATEMENT}) ;
+    foreach my $sku (keys %$sku_costs)
+    {
+        my $sku_cost = $sku_costs->{$sku} ;
+
+        #
+        # Check to see if this is a known SKU
+        $sku_s_stmt->execute( $sku_cost->{sku} ) or die $DBI::errstr ;
+        if( $sku_s_stmt->rows > 0 )
         {
-            print STDOUT "SKU " . $sku->{sku} . " found in DB, updating\n" if $options{debug} > 0 ;
-            if( not $u_stmt->execute( $sku->{vendor_name}, $sku->{title}, $sku->{description}, $sku->{sku} ) )
+            #
+            # Check to see if there is an exists cost
+            $s_stmt->execute( $sku_cost->{sku} ) or die $DBI::errstr ;
+
+            my $start_date = (defined $sku_cost->{start_date} ? $sku_cost->{start_date} : strftime "%Y-%m-%d", localtime) ;
+            my $end_date   = UnixDate(DateCalc($start_date, "- 1 day"), "%Y-%m-%d") ;
+
+            #
+            # If we have a cost for this SKU, delete all future dates, terminate the latest and insert the new
+            if( $s_stmt->rows > 0 )
             {
-                print STDERR "Failed to update " . $sku->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+                print STDOUT "SKU " . $sku_cost->{sku} . " found in DB, updating\n" if $options{debug} > 0 ;
+                #
+                # delete future costs
+                if( not $d_stmt->execute( $sku_cost->{sku}, $end_date ) )
+                {
+                    print STDERR "Failed to end cost of " . $sku_cost->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+                }
+                #
+                # end the found cost
+                if( not $u_stmt->execute( $end_date, $sku_cost->{sku}, $end_date ) )
+                {
+                    print STDERR "Failed to end cost of " . $sku_cost->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+                }
+
+                if( not $i_stmt->execute( $sku_cost->{sku}, $sku_cost->{cost}, $start_date ) )
+                {
+                    print STDERR "Failed to insert " . $sku_cost->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+                }
+            }
+            else
+            {
+                #
+                # We've never seen this before, insert a new cost starting from the beginning of time
+                print STDOUT "SKU " . $sku_cost->{sku} . " not found in DB, inserting\n" if $options{debug} > 0 ;
+                if( not $i_stmt->execute( $sku_cost->{sku}, $sku_cost->{cost}, "1970/01/01" ) )
+                {
+                    print STDERR "Failed to insert " . $sku_cost->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+                }
             }
         }
         else
         {
-            print STDOUT "SKU " . $sku->{sku} . " not found in DB, inserting\n" if $options{debug} > 0 ;
-            if( not $i_stmt->execute( $sku->{sku}, $sku->{vendor_name}, $sku->{title}, $sku->{description} ) )
-            {
-                print STDERR "Failed to insert " . $sku->{sku} . ", with error: " . $DBI::errstr . "\n" ;
-            }
+            print STDERR "Skipping unknown SKU " . $sku_cost->{sku} . "\n" ;
         }
     }
     $i_stmt->finish();
@@ -150,12 +189,12 @@ sub usage_and_die
 # 80 character widge line
 #23456789!123456789"1234567890123456789$123456789%123456789^123456789&123456789*
     print <<USAGE;
-This program inserts the skus
+This program inserts the SKU costs
 
 usage: $0 [options]
---email           send to this email address
---print           print instead of email
---usage|help|?    print this help
+--database     The database to load to
+--filename     The filename that contains the SKU costs
+--usage|help|? print this help
 USAGE
     exit($rc) ;
 }

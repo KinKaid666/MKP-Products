@@ -8,15 +8,14 @@ use mkp_products ;
 
 --
 -- create the order channel domain tabe
-CREATE TABLE IF NOT EXISTS order_channels
+CREATE TABLE IF NOT EXISTS order_sources
 (
-    id              INT UNSIGNED NOT NULL         AUTO_INCREMENT                                -- Unique ID for the record
-   ,source          VARCHAR(20)  NOT NULL                                                       -- Channel where order was taken
-   ,latest_user     VARCHAR(15)      NULL                                                       -- Latest user to update row
+    source_name     VARCHAR(50)  NOT NULL                                                       -- Channel where order was taken
+   ,latest_user     VARCHAR(30)      NULL                                                       -- Latest user to update row
    ,latest_update   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
    ,creation_user   VARCHAR(30)      NULL                                                       -- User that created the row
    ,creation_date   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
-   ,PRIMARY KEY(id)
+   ,PRIMARY KEY(source_name)
 ) ;
 
 DESCRIBE order_channels ;
@@ -42,7 +41,7 @@ DELIMITER ;
 create table if not exists sku_orders
 (
     id                           INT UNSIGNED     NOT NULL AUTO_INCREMENT                                       -- Unique ID for the record
-   ,source_id                    INT UNSIGNED     NOT NULL                                                      -- Channel where order was taken
+   ,source_name                  VARCHAR(50)      NOT NULL                                                      -- Where the order was from
    ,order_datetime               TIMESTAMP        NOT NULL                                                      -- "date/time"
    ,settlement_id                BIGINT UNSIGNED  NOT NULL                                                      -- "settlement id"
    ,type                         VARCHAR(100)     NOT NULL                                                      -- "type""
@@ -69,7 +68,7 @@ create table if not exists sku_orders
    ,latest_update                TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
    ,creation_user                VARCHAR(30)         NULL                                                       -- User that created the row
    ,creation_date                TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
-   ,FOREIGN KEY (source_id) REFERENCES order_channels (id)
+   ,FOREIGN KEY (source_name) REFERENCES order_sources (source_name)
    ,PRIMARY KEY (id)
 ) ;
 
@@ -159,30 +158,99 @@ CREATE TABLE if not exists sku_costs
 (
     sku             VARCHAR(20)   NOT NULL                                                       -- our internal sku id
    ,cost            DECIMAL(13,2) NOT NULL                                                       -- current price
-   ,start_time      DATE          NOT NULL                                                       -- the starting date when the cost is valid
-   ,end_time        DATE              NULL                                                       -- the last date the cost is valid
+   ,start_date      DATE          NOT NULL                                                       -- the starting date when the cost is valid
+   ,end_date        DATE              NULL                                                       -- the last date the cost is valid
    ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
    ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
    ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
    ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
-   ,FOREIGN KEY (sku) REFERENCES skus(sku)
-   ,PRIMARY KEY (sku)
+   ,FOREIGN KEY (sku) REFERENCES skus (sku)
+   ,PRIMARY KEY (sku,start_date)
 ) ;
 
 DESCRIBE sku_costs ;
+
 --
 -- Create trigger to get the use who created or udpated
 DELIMITER //
-CREATE TRIGGER sku_costs_create_trigger BEFORE INSERT on sku_costs
+CREATE TRIGGER sku_cost_create_trigger BEFORE INSERT on sku_costs
 FOR EACH ROW
 BEGIN
     set NEW.creation_user = USER() ;
     set NEW.latest_user = USER() ;
 END //
-CREATE TRIGGER sku_costs_update_trigger BEFORE UPDATE on sku_costs
+CREATE TRIGGER sku_cost_update_trigger BEFORE UPDATE on sku_costs
 FOR EACH ROW
 BEGIN
     set NEW.latest_user = USER() ;
 END //
 DELIMITER ;
 
+--
+-- SKU Costs Domain data
+CREATE TABLE if not exists inventory_conditions
+(
+    condition_name VARCHAR(30)   NOT NULL                                                       -- Inventory Condition
+   ,description    VARCHAR(30)   NOT NULL                                                       -- Inventory Condition
+   ,latest_user    VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
+   ,latest_update  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user  VARCHAR(30)       NULL                                                       -- User that created the row
+   ,creation_date  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,PRIMARY KEY (condition_name)
+) ;
+
+desc inventory_conditions ;
+
+--
+-- Create trigger to get the use who created or udpated
+DELIMITER //
+CREATE TRIGGER inventory_condition_create_trigger BEFORE INSERT on inventory_conditions
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER inventory_condition_update_trigger BEFORE UPDATE on inventory_conditions
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
+--
+-- inventory reports
+CREATE TABLE if not exists onhand_inventory_reports
+(
+    id              INT UNSIGNED  NOT NULL AUTO_INCREMENT                                        -- primary key
+   ,sku             VARCHAR(20)   NOT NULL                                                       -- our internal sku id
+   ,report_date     DATE          NOT NULL                                                       -- date report was run
+   ,source_name     VARCHAR(50)   NOT NULL                                                       -- Channel where inventroy is
+   ,condition_name  VARCHAR(30)   NOT NULL                                                       -- Current condition of inventory
+   ,quantity        INT UNSIGNED  NOT NULL                                                       -- Number of units
+   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
+   ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
+   ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,FOREIGN KEY (sku)            REFERENCES skus (sku)
+   ,FOREIGN KEY (source_name)    REFERENCES order_sources (source_name)
+   ,FOREIGN KEY (condition_name) REFERENCES inventory_conditions (condition_name)
+   ,PRIMARY KEY (id)
+) ;
+
+desc onhand_inventory_reports ;
+
+--
+-- Create trigger to get the use who created or udpated
+DELIMITER //
+CREATE TRIGGER onhand_inventory_reprot_create_trigger BEFORE INSERT on onhand_inventory_reports
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER onhand_inventory_reprot_update_trigger BEFORE UPDATE on onhand_inventory_reports
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;

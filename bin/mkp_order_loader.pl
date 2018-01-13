@@ -2,13 +2,7 @@
 
 use strict ;
 use warnings;
-use charnames qw(:full);
-use Encode ;
 
-binmode STDOUT, ":encoding(UTF-8)" ;
-
-
-# normal use POSIX ;
 use Data::Dumper ;
 use Getopt::Long ;
 use IO::Handle ;
@@ -22,9 +16,8 @@ use Cwd qw(abs_path) ;
 use lib &dirname(&abs_path($0)) . "/lib" ;
 use MKPTimer ;
 
-use constant ORDER_CHANNEL_QUERY     => qq(select id, source from order_channels) ;
 use constant ORDERS_INSERT_STATEMENT => qq(
-    insert into sku_orders ( source_id,
+    insert into sku_orders ( source_name,
                              order_datetime,
                              settlement_id,
                              type,
@@ -179,7 +172,7 @@ my $dbh ;
     foreach my $order (@orders)
     {
         print "About to load " . $order->{source_order_id} . " from " . $order->{order_datetime} . " on SKU " . $order->{sku} . "\n" if $options{debug} > 0 ;
-        if( not $sth->execute( 1                                    , # TODO: Fix by using query
+        if( not $sth->execute( "www.amazon.com"                     ,
                                $order->{order_datetime}             ,
                                $order->{settlement_id}              ,
                                $order->{type}                       ,

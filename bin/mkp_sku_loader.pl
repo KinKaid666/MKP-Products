@@ -2,13 +2,7 @@
 
 use strict ;
 use warnings;
-use charnames qw(:full);
-use Encode ;
 
-binmode STDOUT, ":encoding(UTF-8)" ;
-
-
-# normal use POSIX ;
 use Data::Dumper ;
 use Getopt::Long ;
 use IO::Handle ;
@@ -37,7 +31,6 @@ $options{debug}    = 0 ; # default
 
 &GetOptions(
     "database=s"     => \$options{database},
-    "email=s"        => \$options{email},
     "filename=s"     => \$options{filename},
     "print"          => \$options{print},
     "timing"         => sub { $options{timing}++ },
@@ -53,9 +46,9 @@ my @skus ;
 # ingest file
 #
 # Example:
-# sku,vendor name,Title,Description
-# MKP-RR013,Wooster,"12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2"" and 6-1/2"" Covers - 12"" Length","12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2"" and 6-1/2"" Covers - 12"" Length"
-# MKP-RR308,Wooster,"12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2"" Jumbo-Koter Foam Roller Cover - 2 per Package","12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2"" Jumbo-Koter Foam Roller Cover - 2 per Package"
+# "sku","vendor name","Title","Description"
+# "MKP-RR013","Wooster","12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2" and 6-1/2" Covers - 12" Length","12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2" and 6-1/2" Covers - 12" Length"
+# "MKP-RR308","Wooster","12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2" Jumbo-Koter Foam Roller Cover - 2 per Package","12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2" Jumbo-Koter Foam Roller Cover - 2 per Package"
 {
     my $timer = MKPTimer->new("File processing", *STDOUT, $options{timing}, 1) ;
     my $lineNumber = 0 ;
@@ -150,12 +143,12 @@ sub usage_and_die
 # 80 character widge line
 #23456789!123456789"1234567890123456789$123456789%123456789^123456789&123456789*
     print <<USAGE;
-This program inserts the skus
+This program inserts or updates the skus
 
 usage: $0 [options]
---email           send to this email address
---print           print instead of email
---usage|help|?    print this help
+--database     The database to load
+--filename     the filename that contains the SKUs
+--usage|help|? print this help
 USAGE
     exit($rc) ;
 }
