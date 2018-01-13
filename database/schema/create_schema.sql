@@ -7,7 +7,7 @@ CREATE DATABASE IF NOT EXISTS mkp_products ;
 use mkp_products ;
 
 --
--- create the order channel domain tabe
+-- create the order source table
 CREATE TABLE IF NOT EXISTS order_sources
 (
     source_name     VARCHAR(50)  NOT NULL                                                       -- Channel where order was taken
@@ -90,7 +90,41 @@ BEGIN
 END //
 DELIMITER ;
 
--- vendor Domain data
+--
+-- create the expense table
+CREATE TABLE IF NOT EXISTS expenses
+(
+    id                   INT UNSIGNED NOT NULL AUTO_INCREMENT                                        -- Unique ID for the record
+   ,source_name          VARCHAR(50)  NOT NULL                                                       -- Channel where order was taken
+   ,expense_datetime     TIMESTAMP    NOT NULL                                                       -- "date/time"
+   ,expense_type         VARCHAR(50)      NULL                                                       -- "date/time"
+   ,expense_description  VARCHAR(150)     NULL                                                       -- "date/time"
+   ,latest_user          VARCHAR(30)      NULL                                                       -- Latest user to update row
+   ,latest_update        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user        VARCHAR(30)      NULL                                                       -- User that created the row
+   ,creation_date        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,PRIMARY KEY(id)
+) ;
+
+DESCRIBE expenses ;
+
+--
+-- Create trigger to get the user who created or udpated
+DELIMITER //
+CREATE TRIGGER expense_create_trigger BEFORE INSERT on expenses
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER expense_update_trigger BEFORE UPDATE on expenses
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
+-- vendor domain data
 CREATE TABLE if not exists vendors
 (
     vendor_name   VARCHAR(50)  NOT NULL                                                       -- vendor name

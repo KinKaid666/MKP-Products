@@ -16,6 +16,8 @@ use Cwd qw(abs_path) ;
 use lib &dirname(&abs_path($0)) . "/lib" ;
 use MKPTimer ;
 
+use constant EXPENSES_INSERT_STATEMENT => qq( insert into expenses ( source_name, expense_datetime, type, description, total ) value ( ?, ?, ?, ?, ? ) ) ;
+
 use constant ORDERS_INSERT_STATEMENT => qq(
     insert into sku_orders ( source_name,
                              order_datetime,
@@ -63,7 +65,8 @@ $options{debug}    = 0 ; # default
 
 die "You must provide a filename." if (not defined $options{filename}) ;
 
-my @orders ;
+my @sku_orders ;
+my @expenses ;
 
 #
 # ingest file
@@ -109,11 +112,12 @@ my @orders ;
         $line =~ s/,,/,"",/g ;
         #    lastly cut all the fields by ","
         my @subs = split(/","/, $line) ;
+        die "invalid line $lineNumber : $line" if scalar @subs != 23 ;
 
         my $orderLine ;
-        $orderLine->{order_datetime}              = &format_date($subs[ 0]);
+        $orderLine->{order_datetime}              = &format_date($subs[0]);
         $orderLine->{settlement_id}               = $subs[ 1] ;
-        $orderLine->{type}                        = $subs[ 2] ; #unused
+        $orderLine->{type}                        = $subs[ 2] ;
         $orderLine->{source_order_id}             = $subs[ 3] ;
         $orderLine->{sku}                         = $subs[ 4] ;
         $orderLine->{description}                 = $subs[ 5] ;
@@ -135,21 +139,37 @@ my @orders ;
         $orderLine->{other}                       = $subs[21] ;
         $orderLine->{total}                       = $subs[22] ;
 
-        next if( $orderLine->{type} eq "Service Fee" or
-                 $orderLine->{type} eq "FBA Inventory Fee" or
-                 $orderLine->{type} eq "Transfer" or
-                 $orderLine->{sku}  eq "" ) ;
+        #
+        # Amazon paying our bank account
+        next if $orderLine->{type} eq "Transfer" ;
 
-        #die "invalid line $lineNumber : $line" if scalar @subs != 23 ;
-        die "invalid line $lineNumber : $line" if scalar @subs != 23 ;
+        #
+        # Amazon non-SKU and non-order expenses
+        if( $orderLine->{type} eq "Service Fee" or $orderLine->{type} eq "FBA Inventory Fee" or $orderLine->{sku}  eq "" )
+        {
+            print "Found on line " . $lineNumber . " Expense type '" . $orderLine->{type} . "' with description '" . $orderLine->{description} .
+                  " from " . $orderLine->{order_datetime} . " for " . $orderLine->{total} . "\n" if $options{debug} > 1 ;
+            my $expense ;
 
-        print "Found on line " . $lineNumber . " Order " . $orderLine->{source_order_id} . " from " . $orderLine->{order_datetime} . " on SKU " . $orderLine->{sku} . "\n" if $options{debug} > 1 ;
-        push @orders, $orderLine ;
+            $expense->{expense_datetime} = $orderLine->{order_datetime} ;
+            $expense->{type}             = $orderLine->{type} ;
+            $expense->{description}      = $orderLine->{description} ;
+            $expense->{total}            = $orderLine->{total} ;
+            push @expenses, $expense ;
+        }
+        else
+        {
+            print "Found on line " . $lineNumber . " Order " . $orderLine->{source_order_id} .
+                  " from " . $orderLine->{order_datetime} . " on SKU " . $orderLine->{sku} . "\n" if $options{debug} > 1 ;
+            push @sku_orders, $orderLine ;
+        }
     }
     close INPUTFILE;
-    print "Process file containing $lineNumber line(s).\n" if $options{debug} > 0 ;
-    print "  -> Found " . @orders . " record(s).\n"        if $options{debug} > 0 ;
-    print "\@orders = " . Dumper(\@orders) . "\n"          if $options{debug} > 2 ;
+    print "Process file containing $lineNumber line(s).\n"                    if $options{debug} > 0 ;
+    print "  -> Found " . @sku_orders . " SKU related record(s).\n"           if $options{debug} > 0 ;
+    print "\@sku_orders = " . Dumper(\@sku_orders) . "\n"                     if $options{debug} > 2 ;
+    print "  -> Found " . @expenses . " non-SKU related expense record(s).\n" if $options{debug} > 0 ;
+    print "\@expenses = " . Dumper(\@expenses) . "\n"                         if $options{debug} > 2 ;
 }
 
 # Connect to the database.
@@ -162,16 +182,15 @@ my $dbh ;
                        {'RaiseError' => 1});
 }
 
-
 #
 # Insert each order
 {
-    my $timer = MKPTimer->new("INSERT", *STDOUT, $options{timing}, 1) ;
+    my $timer = MKPTimer->new("Insert orders", *STDOUT, $options{timing}, 1) ;
 
     my $sth = $dbh->prepare(${\ORDERS_INSERT_STATEMENT}) ;
-    foreach my $order (@orders)
+    foreach my $order (@sku_orders)
     {
-        print "About to load " . $order->{source_order_id} . " from " . $order->{order_datetime} . " on SKU " . $order->{sku} . "\n" if $options{debug} > 0 ;
+        print "About to load order " . $order->{source_order_id} . " from " . $order->{order_datetime} . " on SKU " . $order->{sku} . "\n" if $options{debug} > 0 ;
         if( not $sth->execute( "www.amazon.com"                     ,
                                $order->{order_datetime}             ,
                                $order->{settlement_id}              ,
@@ -197,6 +216,28 @@ my $dbh ;
                                $order->{total}                      ) )
         {
             print STDERR "Failed to insert " . $order->{source_order_id} . "from " . $order->{order_datetime} . " on SKU " . $order->{sku} . "\n" ;
+        }
+    }
+    $sth->finish();
+}
+
+#
+# Insert each expense
+{
+    my $timer = MKPTimer->new("Insert expenses", *STDOUT, $options{timing}, 1) ;
+
+    my $sth = $dbh->prepare(${\EXPENSES_INSERT_STATEMENT}) ;
+    foreach my $expense (@expenses)
+    {
+        print "About to load expense type '" . $expense->{type} . "' with description '" . $expense->{description} .
+              "' from " . $expense->{expense_datetime} . " for " . $expense->{total} . "\n" if $options{debug} > 0 ;
+        if( not $sth->execute( "www.amazon.com"            ,
+                               $expense->{expense_datetime},
+                               $expense->{type}            ,
+                               $expense->{description}     ,
+                               $expense->{total}           ) )
+        {
+            print STDERR "Failed to insert '" . $expense->{type} . "' from " . $expense->{expense_datetime} . "\n" ;
         }
     }
     $sth->finish();

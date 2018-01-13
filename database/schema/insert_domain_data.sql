@@ -4,7 +4,7 @@ use mkp_products ;
 
 --
 -- insert order_channels
-INSERT INTO order_channels ( source_name ) VALUES
+INSERT INTO order_sources ( source_name ) VALUES
     ( 'www.amazon.com' ),
     ( 'www.ebay.com' ) ;
 
@@ -19,7 +19,8 @@ INSERT INTO vendors ( vendor_name, description ) VALUES
     ( 'Paint Scentsations' ,'' ),
     ( 'Tower Sealants'     ,'' ),
     ( 'Warner'             ,'' ),
-    ( 'Whizz'              ,'' ) ;
+    ( 'Whizz'              ,'' ),
+    ( 'Unknown'            ,'' ) ;
 
 --
 -- insert inventory_conditions
