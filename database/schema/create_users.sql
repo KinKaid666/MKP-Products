@@ -19,7 +19,7 @@ GRANT SELECT ON mkp_products.* TO mkp_reporter@localhost ;
 --
 -- Create a user who can load orders
 CREATE USER mkp_loader@localhost IDENTIFIED BY 'mkp_loader_2018' ;
-GRANT INSERT,SELECT ON mkp_products.* TO mkp_loader@localhost ;
+GRANT INSERT,SELECT,UPDATE,DELETE ON mkp_products.* TO mkp_loader@localhost ;
 
 --
 -- reload all the privileges

@@ -61,7 +61,6 @@ $options{debug}    = 0 ; # default
 
 &GetOptions(
     "database=s"     => \$options{database},
-    "email=s"        => \$options{email},
     "filename=s"     => \$options{filename},
     "print"          => \$options{print},
     "timing"         => sub { $options{timing}++ },
@@ -232,12 +231,12 @@ sub usage_and_die
 # 80 character widge line
 #23456789!123456789"1234567890123456789$123456789%123456789^123456789&123456789*
     print <<USAGE;
-This program emails or prints the EAD performance for Amazon Logistics
+This program adds order entries to the database
 
 usage: $0 [options]
---email           send to this email address
---print           print instead of email
---usage|help|?    print this help
+--database      the database to use
+--filename      the filename containing the orders
+--usage|help|?  print this help
 USAGE
     exit($rc) ;
 }

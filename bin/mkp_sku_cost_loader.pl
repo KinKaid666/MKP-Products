@@ -91,8 +91,8 @@ my @skus ;
     }
     close INPUTFILE;
     print "Process file containing $lineNumber line(s).\n" if $options{debug} > 0 ;
-    print "  -> Found " . @skus . " record(s).\n"          if $options{debug} > 0 ;
-    print "\@skus = " . Dumper(\@skus) . "\n"              if $options{debug} > 2 ;
+    print "  -> Found " . @skus . " record(s).\n"        if $options{debug} > 0 ;
+    print "\@orders = " . Dumper(\@skus) . "\n"          if $options{debug} > 2 ;
 }
 
 # Connect to the database.
