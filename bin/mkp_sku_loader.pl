@@ -22,6 +22,8 @@ use Cwd qw(abs_path) ;
 use lib &dirname(&abs_path($0)) . "/lib" ;
 use MKPTimer ;
 
+use constant SKUS_SELECT_STATEMENT => qq( select sku from skus where sku = ? ) ;
+use constant SKUS_UPDATE_STATEMENT => qq( update skus set vendor_name = ?, title = ?, description = ? where sku = ? ) ;
 use constant SKUS_INSERT_STATEMENT => qq( insert into skus ( sku, vendor_name, title, description ) value ( ?, ?, ?, ? ) ) ;
 
 my %options ;
@@ -76,8 +78,6 @@ my @skus ;
         #    lastly cut all the fields by ","
         my @subs = split(/","/, $line) ;
 
-        print Dumper(\@subs) . "\n" ;
-
         my $skuLine ;
         $skuLine->{sku}         = $subs[0] ;
         $skuLine->{vendor_name} = $subs[1] ;
@@ -111,16 +111,33 @@ my $dbh ;
 {
     my $timer = MKPTimer->new("INSERT", *STDOUT, $options{timing}, 1) ;
 
-    my $sth = $dbh->prepare(${\SKUS_INSERT_STATEMENT}) ;
+    my $s_stmt = $dbh->prepare(${\SKUS_SELECT_STATEMENT}) ;
+    my $u_stmt = $dbh->prepare(${\SKUS_UPDATE_STATEMENT}) ;
+    my $i_stmt = $dbh->prepare(${\SKUS_INSERT_STATEMENT}) ;
     foreach my $sku (@skus)
     {
-        print "About to load " . $sku->{sku} . " from " . $sku->{vendor_name} . "\n" if $options{debug} > 0 ;
-        if( not $sth->execute( $sku->{sku}, $sku->{vendor_name}, $sku->{title}, $sku->{description} ) )
+        $s_stmt->execute( $sku->{sku} ) or die $DBI::errstr ;
+
+        if( $s_stmt->rows > 0 )
         {
-            print STDERR "Failed to insert " . $sku->{sku} . "from " . $sku->{vendor_name} . "\n" ;
+            print STDOUT "SKU " . $sku->{sku} . " found in DB, updating\n" if $options{debug} > 0 ;
+            if( not $u_stmt->execute( $sku->{vendor_name}, $sku->{title}, $sku->{description}, $sku->{sku} ) )
+            {
+                print STDERR "Failed to update " . $sku->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+            }
+        }
+        else
+        {
+            print STDOUT "SKU " . $sku->{sku} . " not found in DB, inserting\n" if $options{debug} > 0 ;
+            if( not $i_stmt->execute( $sku->{sku}, $sku->{vendor_name}, $sku->{title}, $sku->{description} ) )
+            {
+                print STDERR "Failed to insert " . $sku->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+            }
         }
     }
-    $sth->finish();
+    $i_stmt->finish();
+    $u_stmt->finish();
+    $s_stmt->finish();
 }
 # Disconnect from the database.
 $dbh->disconnect();
