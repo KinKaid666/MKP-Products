@@ -24,29 +24,30 @@ use MKPTimer ;
 
 use constant ORDER_CHANNEL_QUERY     => qq(select id, source from order_channels) ;
 use constant ORDERS_INSERT_STATEMENT => qq(
-    insert into orders ( source_id,
-                         order_datetime,
-                         settlement_id,
-                         source_order_id,
-                         sku,
-                         quantity,
-                         marketplace,
-                         fulfillment,
-                         order_city,
-                         order_state,
-                         order_postal_code,
-                         product_sales,
-                         shipping_credits,
-                         gift_wrap_credits,
-                         promotional_rebates,
-                         sales_tax_collected,
-                         marketplace_facilitator_tax,
-                         selling_fees,
-                         fba_fees,
-                         transaction_fees,
-                         other,
-                         total
-    ) value ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? )
+    insert into sku_orders ( source_id,
+                             order_datetime,
+                             settlement_id,
+                             type,
+                             source_order_id,
+                             sku,
+                             quantity,
+                             marketplace,
+                             fulfillment,
+                             order_city,
+                             order_state,
+                             order_postal_code,
+                             product_sales,
+                             shipping_credits,
+                             gift_wrap_credits,
+                             promotional_rebates,
+                             sales_tax_collected,
+                             marketplace_facilitator_tax,
+                             selling_fees,
+                             fba_fees,
+                             transaction_fees,
+                             other,
+                             total
+    ) value ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? )
 ) ;
 
 my %options ;
@@ -142,12 +143,15 @@ my @orders ;
         $orderLine->{other}                       = $subs[21] ;
         $orderLine->{total}                       = $subs[22] ;
 
-        next if $orderLine->{type} ne "Order" ;
+        next if( $orderLine->{type} eq "Service Fee" or
+                 $orderLine->{type} eq "FBA Inventory Fee" or
+                 $orderLine->{type} eq "Transfer" or
+                 $orderLine->{sku}  eq "" ) ;
 
         #die "invalid line $lineNumber : $line" if scalar @subs != 23 ;
         die "invalid line $lineNumber : $line" if scalar @subs != 23 ;
 
-        print "Found " . $orderLine->{source_order_id} . " from " . $orderLine->{order_datetime} . " on SKU " . $orderLine->{sku} . "\n" if $options{debug} > 1 ;
+        print "Found on line " . $lineNumber . " Order " . $orderLine->{source_order_id} . " from " . $orderLine->{order_datetime} . " on SKU " . $orderLine->{sku} . "\n" if $options{debug} > 1 ;
         push @orders, $orderLine ;
     }
     close INPUTFILE;
@@ -175,9 +179,11 @@ my $dbh ;
     my $sth = $dbh->prepare(${\ORDERS_INSERT_STATEMENT}) ;
     foreach my $order (@orders)
     {
+        print "About to load " . $order->{source_order_id} . " from " . $order->{order_datetime} . " on SKU " . $order->{sku} . "\n" if $options{debug} > 0 ;
         if( not $sth->execute( 1                                    , # TODO: Fix by using query
                                $order->{order_datetime}             ,
                                $order->{settlement_id}              ,
+                               $order->{type}                       ,
                                $order->{source_order_id}            ,
                                $order->{sku}                        ,
                                $order->{quantity}                   ,

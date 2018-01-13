@@ -78,15 +78,111 @@ DESCRIBE sku_orders ;
 --
 -- Create trigger to get the use who created or udpated
 DELIMITER //
-CREATE TRIGGER order_create_trigger BEFORE INSERT on sku_orders
+CREATE TRIGGER sku_order_create_trigger BEFORE INSERT on sku_orders
 FOR EACH ROW
 BEGIN
     set NEW.creation_user = USER() ;
     set NEW.latest_user = USER() ;
 END //
-CREATE TRIGGER order_update_trigger BEFORE UPDATE on sku_orders
+CREATE TRIGGER sku_order_update_trigger BEFORE UPDATE on sku_orders
 FOR EACH ROW
 BEGIN
     set NEW.latest_user = USER() ;
 END //
 DELIMITER ;
+
+-- vendor Domain data
+CREATE TABLE if not exists vendors
+(
+    vendor_name   VARCHAR(50)  NOT NULL                                                       -- vendor name
+   ,description   VARCHAR(150)     NULL                                                       -- description
+   ,latest_user   VARCHAR(30)      NULL                                                       -- Latest user to update row
+   ,latest_update TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user VARCHAR(30)      NULL                                                       -- User that created the row
+   ,creation_date TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,PRIMARY KEY (vendor_name)
+) ;
+
+DESCRIBE vendors ;
+--
+-- Create trigger to get the use who created or udpated
+DELIMITER //
+CREATE TRIGGER vendor_create_trigger BEFORE INSERT on vendors
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER vendor_update_trigger BEFORE UPDATE on vendors
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
+--
+-- SKU Domain data
+CREATE TABLE if not exists skus
+(
+    sku             VARCHAR(20)   NOT NULL                                                       -- our internal sku id
+   ,vendor_name     VARCHAR(50)       NULL                                                       -- name of the vendor we buy the sku from
+   ,title           VARCHAR(150)      NULL                                                       -- title of the listing
+   ,description     VARCHAR(500)      NULL                                                       -- details of the SKU
+   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
+   ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
+   ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,FOREIGN KEY (vendor_name) REFERENCES vendors(vendor_name)
+   ,PRIMARY KEY (sku)
+) ;
+
+DESCRIBE skus ;
+--
+-- Create trigger to get the use who created or udpated
+DELIMITER //
+CREATE TRIGGER sku_create_trigger BEFORE INSERT on skus
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER sku_update_trigger BEFORE UPDATE on skus
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
+--
+-- SKU Costs Domain data
+CREATE TABLE if not exists sku_costs
+(
+    sku             VARCHAR(20)   NOT NULL                                                       -- our internal sku id
+   ,cost            DECIMAL(13,2) NOT NULL                                                       -- current price
+   ,start_time      DATE          NOT NULL                                                       -- the starting date when the cost is valid
+   ,end_time        DATE              NULL                                                       -- the last date the cost is valid
+   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
+   ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
+   ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,FOREIGN KEY (sku) REFERENCES skus(sku)
+   ,PRIMARY KEY (sku)
+) ;
+
+DESCRIBE sku_costs ;
+--
+-- Create trigger to get the use who created or udpated
+DELIMITER //
+CREATE TRIGGER sku_costs_create_trigger BEFORE INSERT on sku_costs
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER sku_costs_update_trigger BEFORE UPDATE on sku_costs
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
