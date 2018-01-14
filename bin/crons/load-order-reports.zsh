@@ -8,7 +8,6 @@ cd $REPORT_DIR ;
 
 foreach i in `ls`
 do
-$REPORT_LOADER --filename $i
-mv $i $BACKUP_DIR
+$REPORT_LOADER --filename $i && mv $i $BACKUP_DIR
 done
 

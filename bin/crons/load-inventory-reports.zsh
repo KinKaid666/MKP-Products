@@ -12,8 +12,7 @@ REPORT_DATE=`echo $i | perl -pe  's/^.*([0-9]{2})-([0-9]{2})-([0-9]{4}).*$/$3-$1
 if [[ $REPORT_DATE = $i ]] ; then
     echo "Invalid filename: $i" ;
 else
-    $REPORT_LOADER --filename $i --report-date=$REPORT_DATE
+    $REPORT_LOADER --filename $i --report-date=$REPORT_DATE && mv $i $BACKUP_DIR
 fi
-mv $i $BACKUP_DIR
 done
 
