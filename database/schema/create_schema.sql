@@ -69,6 +69,7 @@ create table if not exists sku_orders
    ,creation_user                VARCHAR(30)         NULL                                                       -- User that created the row
    ,creation_date                TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
    ,FOREIGN KEY (source_name) REFERENCES order_sources (source_name)
+   ,FOREIGN KEY (sku)         REFERENCES skus (sku)
    ,PRIMARY KEY (id)
 ) ;
 
@@ -94,15 +95,16 @@ DELIMITER ;
 -- create the expense table
 CREATE TABLE IF NOT EXISTS expenses
 (
-    id                   INT UNSIGNED NOT NULL AUTO_INCREMENT                                        -- Unique ID for the record
-   ,source_name          VARCHAR(50)  NOT NULL                                                       -- Channel where order was taken
-   ,expense_datetime     TIMESTAMP    NOT NULL                                                       -- "date/time"
-   ,expense_type         VARCHAR(50)      NULL                                                       -- "date/time"
-   ,expense_description  VARCHAR(150)     NULL                                                       -- "date/time"
-   ,latest_user          VARCHAR(30)      NULL                                                       -- Latest user to update row
-   ,latest_update        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
-   ,creation_user        VARCHAR(30)      NULL                                                       -- User that created the row
-   ,creation_date        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+    id                   INT UNSIGNED  NOT NULL AUTO_INCREMENT                                        -- Unique ID for the record
+   ,source_name          VARCHAR(50)   NOT NULL                                                       -- Channel where order was taken
+   ,expense_datetime     TIMESTAMP     NOT NULL                                                       -- "date/time"
+   ,type                 VARCHAR(50)       NULL                                                       -- "date/time"
+   ,description          VARCHAR(150)      NULL                                                       -- "date/time"
+   ,total                DECIMAL(13,2) NOT NULL                                                       -- amount of the expense
+   ,latest_user          VARCHAR(30)       NULL                                                       -- Latest user to update row
+   ,latest_update        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user        VARCHAR(30)       NULL                                                       -- User that created the row
+   ,creation_date        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
    ,PRIMARY KEY(id)
 ) ;
 
