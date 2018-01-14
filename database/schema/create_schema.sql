@@ -71,7 +71,7 @@ create table if not exists sku_orders
    ,INDEX (order_datetime)
    ,INDEX (sku)
    ,INDEX (source_order_id)
-   ,UNIQUE (type,source_order_id,sku)
+   ,UNIQUE (order_datetime,type,source_order_id,sku)
    ,FOREIGN KEY (source_name) REFERENCES order_sources (source_name)
    ,FOREIGN KEY (sku)         REFERENCES skus (sku)
    ,PRIMARY KEY (id)

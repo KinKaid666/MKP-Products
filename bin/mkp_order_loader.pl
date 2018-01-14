@@ -17,8 +17,9 @@ use lib &dirname(&abs_path($0)) . "/lib" ;
 use MKPTimer ;
 
 use constant EXPENSES_INSERT_STATEMENT => qq( insert into expenses ( source_name, expense_datetime, type, description, total ) value ( ?, ?, ?, ?, ? ) ) ;
+use constant EXPENSES_SELECT_STATEMENT => qq( select expense_datetime, type, description from expenses where expense_datetime = ? and type = ? and description = ? ) ;
 
-use constant ORDERS_SELECT_STATEMENT => qq( select source_order_id, type, sku from sku_orders where source_order_id = ? and type = ? and sku = ? ) ;
+use constant ORDERS_SELECT_STATEMENT => qq( select order_datetime, source_order_id, type, sku from sku_orders where order_datetime = ? and source_order_id = ? and type = ? and sku = ? ) ;
 use constant ORDERS_INSERT_STATEMENT => qq(
     insert into sku_orders ( source_name,
                              order_datetime,
@@ -251,10 +252,10 @@ my $dbh ;
 
                 #
                 # If we have a cost for this SKU, delete all future dates, terminate the latest and insert the new
-                $s_sth->execute($order,$type,$sku) or die $DBI::errstr ;
+                $s_sth->execute($skuorder->{order_datetime}, $order,$type,$sku) or die $DBI::errstr ;
                 if( $s_sth->rows > 0 )
                 {
-                    print STDERR "Skipping entry found: order " . $order . " SKU " . $sku . " type " . $type . "\n" if $options{debug} > 0 ;
+                    print STDERR "Skipping duplicate sku_order found: order " . $order . " SKU " . $sku . " type " . $type . "\n" ;
                 }
                 else
                 {
@@ -298,24 +299,40 @@ my $dbh ;
 {
     my $timer = MKPTimer->new("Insert expenses", *STDOUT, $options{timing}, 1) ;
 
-    my $sth = $dbh->prepare(${\EXPENSES_INSERT_STATEMENT}) ;
+    my $i_sth = $dbh->prepare(${\EXPENSES_INSERT_STATEMENT}) ;
+    my $s_sth = $dbh->prepare(${\EXPENSES_SELECT_STATEMENT}) ;
     foreach my $expense (@expenses)
     {
-        print "About to load expense type '" . $expense->{type} . "' with description '" . $expense->{description} .
-              "' from " . $expense->{expense_datetime} . " for " . $expense->{total} . "\n" if $options{debug} > 0 ;
-        if( not $sth->execute( "www.amazon.com"            ,
-                               $expense->{expense_datetime},
-                               $expense->{type}            ,
-                               $expense->{description}     ,
-                               $expense->{total}           ) )
+        #
+        # If we have a cost for this SKU, delete all future dates, terminate the latest and insert the new
+        $s_sth->execute($expense->{expense_datetime},$expense->{type},$expense->{description}) or die $DBI::errstr ;
+        if( $s_sth->rows > 0 )
         {
-            print STDERR "Failed to insert '" . $expense->{type} . "' from " . $expense->{expense_datetime} . "\n" ;
+            print STDERR "Skipping duplicate expense entry found: expenses_datetime " . $expense->{expense_datetime} . " type " . $expense->{type} . " description " . $expense->{description} . "\n" ;
+        }
+        else
+        {
+
+            #
+            # TODO Remove hardcoded Amazon.com
+            print "About to load expense type '" . $expense->{type} . "' with description '" . $expense->{description} .
+                  "' from " . $expense->{expense_datetime} . " for " . $expense->{total} . "\n" if $options{debug} > 0 ;
+            if( not $i_sth->execute( "www.amazon.com"            ,
+                                     $expense->{expense_datetime},
+                                     $expense->{type}            ,
+                                     $expense->{description}     ,
+                                     $expense->{total}           ) )
+            {
+                print STDERR "Failed to insert '" . $expense->{type} . "' from " . $expense->{expense_datetime} . "\n" ;
+            }
         }
     }
-    $sth->finish();
+    $i_sth->finish() ;
+    $s_sth->finish() ;
 }
+
 # Disconnect from the database.
-$dbh->disconnect();
+$dbh->disconnect() ;
 
 
 #
