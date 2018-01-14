@@ -18,6 +18,7 @@ use MKPTimer ;
 
 use constant EXPENSES_INSERT_STATEMENT => qq( insert into expenses ( source_name, expense_datetime, type, description, total ) value ( ?, ?, ?, ?, ? ) ) ;
 
+use constant ORDERS_SELECT_STATEMENT => qq( select source_order_id, type, sku from sku_orders where source_order_id = ? and type = ? and sku = ? ) ;
 use constant ORDERS_INSERT_STATEMENT => qq(
     insert into sku_orders ( source_name,
                              order_datetime,
@@ -65,7 +66,7 @@ $options{debug}    = 0 ; # default
 
 die "You must provide a filename." if (not defined $options{filename}) ;
 
-my @sku_orders ;
+my $sku_orders ;
 my @expenses ;
 
 #
@@ -84,6 +85,11 @@ my @expenses ;
 {
     my $timer = MKPTimer->new("File processing", *STDOUT, $options{timing}, 1) ;
     my $lineNumber = 0 ;
+    my $skipped_lines_count = 0 ;
+    my $order_count = 0 ;
+    my $uniq_skuorder_count = 0 ;
+    my $total_skuorder_count = 0 ;
+
     open(INPUTFILE, $options{filename}) or die "Can't open $options{filename}: $!" ;
     while(my $line = <INPUTFILE>)
     {
@@ -94,15 +100,19 @@ my @expenses ;
         #
         # TODO FIGURE OUT ENCODING
         # Skip the default headers; there something
-        next if $line =~ m/.*Includes Amazon Marketplace, Fulfillment by Amazon \(FBA\), and Amazon Webstore transactions.*/ ;
-        #next if $line eq qq("Includes Amazon Marketplace, Fulfillment by Amazon (FBA), and Amazon Webstore transactions") ;
-        next if $line eq qq("All amounts in USD, unless specified") ;
-        next if $line eq qq("Definitions:") ;
-        next if $line eq qq("Sales tax collected: Includes sales tax collected from buyers for product sales, shipping, and gift wrap.") ;
-        next if $line eq qq("Selling fees: Includes variable closing fees and referral fees.") ;
-        next if $line eq qq("Other transaction fees: Includes shipping chargebacks, shipping holdbacks, per-item fees  and sales tax collection fees.") ;
-        next if $line eq qq("Other: Includes non-order transaction amounts. For more details, see the ""Type"" and ""Description"" columns for each order ID.") ;
-        next if $line eq qq("date/time","settlement id","type","order id","sku","description","quantity","marketplace","fulfillment","order city","order state","order postal","product sales","shipping credits","gift wrap credits","promotional rebates","sales tax collected","Marketplace Facilitator Tax","selling fees","fba fees","other transaction fees","other","total") ;
+        if( $line =~ m/.*Includes Amazon Marketplace, Fulfillment by Amazon \(FBA\), and Amazon Webstore transactions.*/
+            or $line eq qq("Includes Amazon Marketplace, Fulfillment by Amazon (FBA), and Amazon Webstore transactions")
+            or $line eq qq("All amounts in USD, unless specified")
+            or $line eq qq("Definitions:")
+            or $line eq qq("Sales tax collected: Includes sales tax collected from buyers for product sales, shipping, and gift wrap.")
+            or $line eq qq("Selling fees: Includes variable closing fees and referral fees.")
+            or $line eq qq("Other transaction fees: Includes shipping chargebacks, shipping holdbacks, per-item fees  and sales tax collection fees.")
+            or $line eq qq("Other: Includes non-order transaction amounts. For more details, see the ""Type"" and ""Description"" columns for each order ID.")
+            or $line eq qq("date/time","settlement id","type","order id","sku","description","quantity","marketplace","fulfillment","order city","order state","order postal","product sales","shipping credits","gift wrap credits","promotional rebates","sales tax collected","Marketplace Facilitator Tax","selling fees","fba fees","other transaction fees","other","total") )
+        {
+            $skipped_lines_count++ ;
+            next ;
+        }
 
         #
         # Amazon has quotes around every field and sometimes some empty, unquote fields
@@ -118,7 +128,7 @@ my @expenses ;
         $orderLine->{order_datetime}              = &format_date($subs[0]);
         $orderLine->{settlement_id}               = $subs[ 1] ;
         $orderLine->{type}                        = $subs[ 2] ;
-        $orderLine->{source_order_id}             = $subs[ 3] ;
+        $orderLine->{source_order_id}             = (length $subs[3] ? $subs[3] : "NO_ORDER");
         $orderLine->{sku}                         = $subs[ 4] ;
         $orderLine->{description}                 = $subs[ 5] ;
         $orderLine->{quantity}                    = $subs[ 6] ;
@@ -141,13 +151,17 @@ my @expenses ;
 
         #
         # Amazon paying our bank account
-        next if $orderLine->{type} eq "Transfer" ;
+        if( $orderLine->{type} eq "Transfer" )
+        {
+            $skipped_lines_count++ ;
+            next ;
+        }
 
         #
         # Amazon non-SKU and non-order expenses
         if( $orderLine->{type} eq "Service Fee" or $orderLine->{type} eq "FBA Inventory Fee" or $orderLine->{sku}  eq "" )
         {
-            print "Found on line " . $lineNumber . " Expense type '" . $orderLine->{type} . "' with description '" . $orderLine->{description} .
+            print "Found expense on line " . $lineNumber . " type '" . $orderLine->{type} . "' with description '" . $orderLine->{description} .
                   " from " . $orderLine->{order_datetime} . " for " . $orderLine->{total} . "\n" if $options{debug} > 1 ;
             my $expense ;
 
@@ -159,17 +173,55 @@ my @expenses ;
         }
         else
         {
-            print "Found on line " . $lineNumber . " Order " . $orderLine->{source_order_id} .
-                  " from " . $orderLine->{order_datetime} . " on SKU " . $orderLine->{sku} . "\n" if $options{debug} > 1 ;
-            push @sku_orders, $orderLine ;
+            #
+            # have we seen this order before?
+            if( exists $sku_orders->{$orderLine->{type}} and exists $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}} )
+            {
+                #
+                # have we seen this sku for this order before?
+                #   if so just add it in
+                if( exists $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}} )
+                {
+                    print "Found additional initial skuorder line on " . $lineNumber . " Order " . $orderLine->{source_order_id} . " on SKU " . $orderLine->{sku} . "\n" if $options{debug} > 1 ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{quantity}                    += $orderLine->{quantity}                    ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{product_sales}               += $orderLine->{product_sales}               ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{shipping_credits}            += $orderLine->{shipping_credits}            ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{gift_wrap_credits}           += $orderLine->{gift_wrap_credits}           ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{promotional_rebates}         += $orderLine->{promotional_rebates}         ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{sales_tax_colected}          += $orderLine->{sales_tax_colected}          ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{marketplace_facilitator_tax} += $orderLine->{marketplace_facilitator_tax} ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{selling_fees}                += $orderLine->{selling_fees}                ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{fba_fees}                    += $orderLine->{fba_fees}                    ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{other_transaction_fees}      += $orderLine->{other_transaction_fees}      ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{other}                       += $orderLine->{other}                       ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}}->{total}                       += $orderLine->{total}                       ;
+                }
+                else
+                {
+                    print "Found initial skuorder line on " . $lineNumber . " Order " . $orderLine->{source_order_id} . " on SKU " . $orderLine->{sku} . "\n" if $options{debug} > 1 ;
+                    $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}} = $orderLine ;
+                    $uniq_skuorder_count++ ;
+                }
+            }
+            else
+            {
+                print "Found initial order line on " . $lineNumber . " Order " . $orderLine->{source_order_id} . " on SKU " . $orderLine->{sku} . "\n" if $options{debug} > 1 ;
+                $sku_orders->{$orderLine->{type}}->{$orderLine->{source_order_id}}->{$orderLine->{sku}} = $orderLine ;
+                $order_count++ ;
+                $uniq_skuorder_count++ ;
+            }
+            $total_skuorder_count++ ;
         }
     }
     close INPUTFILE;
-    print "Process file containing $lineNumber line(s).\n"                    if $options{debug} > 0 ;
-    print "  -> Found " . @sku_orders . " SKU related record(s).\n"           if $options{debug} > 0 ;
-    print "\@sku_orders = " . Dumper(\@sku_orders) . "\n"                     if $options{debug} > 2 ;
-    print "  -> Found " . @expenses . " non-SKU related expense record(s).\n" if $options{debug} > 0 ;
-    print "\@expenses = " . Dumper(\@expenses) . "\n"                         if $options{debug} > 2 ;
+    print "Process file containing $lineNumber line(s).\n"                                 if $options{debug} > 0 ;
+    print "  -> Skipped " . $order_count . " orders related record(s).\n"                    if $options{debug} > 0 ;
+    print "  -> Found " . $order_count . " orders related record(s).\n"                    if $options{debug} > 0 ;
+    print "  -> Found " . $uniq_skuorder_count . " unique sku orders related record(s).\n" if $options{debug} > 0 ;
+    print "  -> Found " . $total_skuorder_count . " total sku orders related record(s).\n" if $options{debug} > 0 ;
+    print "\@sku_orders = " . Dumper(\$sku_orders) . "\n"                                  if $options{debug} > 2 ;
+    print "  -> Found " . @expenses . " non-SKU related expense record(s).\n"              if $options{debug} > 0 ;
+    print "\@expenses = " . Dumper(\@expenses) . "\n"                                      if $options{debug} > 2 ;
 }
 
 # Connect to the database.
@@ -187,38 +239,58 @@ my $dbh ;
 {
     my $timer = MKPTimer->new("Insert orders", *STDOUT, $options{timing}, 1) ;
 
-    my $sth = $dbh->prepare(${\ORDERS_INSERT_STATEMENT}) ;
-    foreach my $order (@sku_orders)
+    my $i_sth = $dbh->prepare(${\ORDERS_INSERT_STATEMENT}) ;
+    my $s_sth = $dbh->prepare(${\ORDERS_SELECT_STATEMENT}) ;
+    foreach my $type (keys %$sku_orders)
     {
-        print "About to load order " . $order->{source_order_id} . " from " . $order->{order_datetime} . " on SKU " . $order->{sku} . "\n" if $options{debug} > 0 ;
-        if( not $sth->execute( "www.amazon.com"                     ,
-                               $order->{order_datetime}             ,
-                               $order->{settlement_id}              ,
-                               $order->{type}                       ,
-                               $order->{source_order_id}            ,
-                               $order->{sku}                        ,
-                               $order->{quantity}                   ,
-                               $order->{marketplace}                ,
-                               $order->{fulfillment}                ,
-                               $order->{order_city}                 ,
-                               $order->{order_state}                ,
-                               $order->{order_postal}               ,
-                               $order->{product_sales}              ,
-                               $order->{shipping_credits}           ,
-                               $order->{gift_wrap_credits}          ,
-                               $order->{promotional_rebates}        ,
-                               $order->{sales_tax_colected}         ,
-                               $order->{marketplace_facilitator_tax},
-                               $order->{selling_fees}               ,
-                               $order->{fba_fees}                   ,
-                               $order->{other_transaction_fees}     ,
-                               $order->{other}                      ,
-                               $order->{total}                      ) )
+        foreach my $order (keys %{$sku_orders->{$type}})
         {
-            print STDERR "Failed to insert " . $order->{source_order_id} . "from " . $order->{order_datetime} . " on SKU " . $order->{sku} . "\n" ;
+            foreach my $sku (keys %{$sku_orders->{$type}->{$order}} )
+            {
+                my $skuorder = $sku_orders->{$type}->{$order}->{$sku} ;
+
+                #
+                # If we have a cost for this SKU, delete all future dates, terminate the latest and insert the new
+                $s_sth->execute($order,$type,$sku) or die $DBI::errstr ;
+                if( $s_sth->rows > 0 )
+                {
+                    print STDERR "Skipping entry found: order " . $order . " SKU " . $sku . " type " . $type . "\n" if $options{debug} > 0 ;
+                }
+                else
+                {
+                    print "About to load order " . $skuorder->{source_order_id} . " from " . $skuorder->{order_datetime} . " on SKU " . $skuorder->{sku} . "\n" if $options{debug} > 0 ;
+                    if( not $i_sth->execute( "www.amazon.com"                     ,
+                                             $skuorder->{order_datetime}             ,
+                                             $skuorder->{settlement_id}              ,
+                                             $skuorder->{type}                       ,
+                                             $skuorder->{source_order_id}            ,
+                                             $skuorder->{sku}                        ,
+                                             $skuorder->{quantity}                   ,
+                                             $skuorder->{marketplace}                ,
+                                             $skuorder->{fulfillment}                ,
+                                             $skuorder->{order_city}                 ,
+                                             $skuorder->{order_state}                ,
+                                             $skuorder->{order_postal}               ,
+                                             $skuorder->{product_sales}              ,
+                                             $skuorder->{shipping_credits}           ,
+                                             $skuorder->{gift_wrap_credits}          ,
+                                             $skuorder->{promotional_rebates}        ,
+                                             $skuorder->{sales_tax_colected}         ,
+                                             $skuorder->{marketplace_facilitator_tax},
+                                             $skuorder->{selling_fees}               ,
+                                             $skuorder->{fba_fees}                   ,
+                                             $skuorder->{other_transaction_fees}     ,
+                                             $skuorder->{other}                      ,
+                                             $skuorder->{total}                      ) )
+                    {
+                        print STDERR "Failed to insert " . $skuorder->{source_order_id} . "from " . $skuorder->{order_datetime} . " on SKU " . $skuorder->{sku} . "\n" ;
+                    }
+                }
+            }
         }
     }
-    $sth->finish();
+    $i_sth->finish();
+    $s_sth->finish();
 }
 
 #
