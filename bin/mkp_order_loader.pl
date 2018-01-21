@@ -68,7 +68,7 @@ $options{debug}    = 0 ; # default
 die "You must provide a filename." if (not defined $options{filename}) ;
 
 my $sku_orders ;
-my @expenses ;
+my $expenses ;
 
 #
 # ingest file
@@ -90,6 +90,8 @@ my @expenses ;
     my $order_count = 0 ;
     my $uniq_skuorder_count = 0 ;
     my $total_skuorder_count = 0 ;
+    my $expense_count = 0 ;
+    my $uniq_expense_count = 0 ;
 
     open(INPUTFILE, $options{filename}) or die "Can't open $options{filename}: $!" ;
     while(my $line = <INPUTFILE>)
@@ -163,14 +165,24 @@ my @expenses ;
         if( $orderLine->{type} eq "Service Fee" or $orderLine->{type} eq "FBA Inventory Fee" or $orderLine->{sku}  eq "" )
         {
             print "Found expense on line " . $lineNumber . " type '" . $orderLine->{type} . "' with description '" . $orderLine->{description} .
-                  " from " . $orderLine->{order_datetime} . " for " . $orderLine->{total} . "\n" if $options{debug} > 1 ;
+                  "' from " . $orderLine->{order_datetime} . " for " . $orderLine->{total} . "\n" if $options{debug} > 1 ;
             my $expense ;
 
-            $expense->{expense_datetime} = $orderLine->{order_datetime} ;
-            $expense->{type}             = $orderLine->{type} ;
-            $expense->{description}      = $orderLine->{description} ;
-            $expense->{total}            = $orderLine->{total} ;
-            push @expenses, $expense ;
+            my $key = $orderLine->{order_datetime} . "~" . $orderLine->{type} . "~" . $orderLine->{description} ;
+            if( exists $expenses->{$key} )
+            {
+                $expenses->{$key}->{total}           += $orderLine->{total} ;
+            }
+            else
+            {
+                $expense->{expense_datetime} = $orderLine->{order_datetime} ;
+                $expense->{type}             = $orderLine->{type} ;
+                $expense->{description}      = $orderLine->{description} ;
+                $expense->{total}            = $orderLine->{total} ;
+                $uniq_expense_count++ ;
+                $expenses->{$key} = $expense ;
+            }
+            $expense_count++ ;
         }
         else
         {
@@ -215,14 +227,15 @@ my @expenses ;
         }
     }
     close INPUTFILE;
-    print "Process file containing $lineNumber line(s).\n"                                 if $options{debug} > 0 ;
-    print "  -> Skipped " . $order_count . " orders related record(s).\n"                    if $options{debug} > 0 ;
-    print "  -> Found " . $order_count . " orders related record(s).\n"                    if $options{debug} > 0 ;
-    print "  -> Found " . $uniq_skuorder_count . " unique sku orders related record(s).\n" if $options{debug} > 0 ;
-    print "  -> Found " . $total_skuorder_count . " total sku orders related record(s).\n" if $options{debug} > 0 ;
-    print "\@sku_orders = " . Dumper(\$sku_orders) . "\n"                                  if $options{debug} > 2 ;
-    print "  -> Found " . @expenses . " non-SKU related expense record(s).\n"              if $options{debug} > 0 ;
-    print "\@expenses = " . Dumper(\@expenses) . "\n"                                      if $options{debug} > 2 ;
+    print "Process file containing $lineNumber line(s).\n"                                    if $options{debug} > 0 ;
+    print "  -> Skipped " . $order_count . " orders related record(s).\n"                     if $options{debug} > 0 ;
+    print "  -> Found " . $order_count . " orders related record(s).\n"                       if $options{debug} > 0 ;
+    print "  -> Found " . $uniq_skuorder_count . " unique sku orders related record(s).\n"    if $options{debug} > 0 ;
+    print "  -> Found " . $total_skuorder_count . " total sku orders related record(s).\n"    if $options{debug} > 0 ;
+    print "\@sku_orders = " . Dumper(\$sku_orders) . "\n"                                     if $options{debug} > 2 ;
+    print "  -> Found " . $expense_count . " non-SKU related expense record(s).\n"            if $options{debug} > 0 ;
+    print "  -> Found " . $uniq_expense_count . " uniqu non-SKU related expense record(s).\n" if $options{debug} > 0 ;
+    print "\@expenses = " . Dumper(\$expenses) . "\n"                                         if $options{debug} > 2 ;
 }
 
 # Connect to the database.
@@ -301,8 +314,9 @@ my $dbh ;
 
     my $i_sth = $dbh->prepare(${\EXPENSES_INSERT_STATEMENT}) ;
     my $s_sth = $dbh->prepare(${\EXPENSES_SELECT_STATEMENT}) ;
-    foreach my $expense (@expenses)
+    foreach my $key (keys %$expenses) 
     {
+        my $expense = $expenses->{$key} ;
         #
         # If we have a cost for this SKU, delete all future dates, terminate the latest and insert the new
         $s_sth->execute($expense->{expense_datetime},$expense->{type},$expense->{description}) or die $DBI::errstr ;

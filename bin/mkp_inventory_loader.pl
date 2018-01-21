@@ -115,12 +115,12 @@ my $dbh ;
         {
             if( not $i_stmt->execute( $ohi->{sku}, $options{report_date}, "www.amazon.com", $ohi->{condition_code}, $ohi->{quantity} ) )
             {
-                print STDERR "Failed to update " . $ohi->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+                die "Failed to update " . $ohi->{sku} . ", with error: " . $DBI::errstr . "\n" ;
             }
         }
         else
         {
-            die "SKU " . $ohi->{sku} . " not found!\n" ;
+            print STDERR "SKU " . $ohi->{sku} . " not found, skipping!\n" ;
         }
     }
     $i_stmt->finish();

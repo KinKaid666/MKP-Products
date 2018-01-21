@@ -20,6 +20,7 @@ INSERT INTO vendors ( vendor_name, description ) VALUES
     ( 'Tower Sealants'     ,'' ),
     ( 'Warner'             ,'' ),
     ( 'Whizz'              ,'' ),
+    ( 'Foremost'           ,'' ),
     ( 'Unknown'            ,'' ) ;
 
 --

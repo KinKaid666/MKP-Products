@@ -77,7 +77,7 @@ my @skus ;
         $skuLine->{title}       = $subs[2] ;
         $skuLine->{description} = $subs[3] ;
 
-        die "invalid line $lineNumber : $line" if scalar @subs != 4 ;
+        die "invalid line $lineNumber : $line " if scalar @subs != 4 ;
 
         print "Found on line " . $lineNumber . " SKU " . $skuLine->{sku} . " from vendor " . $skuLine->{vendor_name} . "\n" if $options{debug} > 1 ;
         push @skus, $skuLine ;
