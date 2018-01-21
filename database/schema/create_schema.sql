@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS expenses
    ,creation_date        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
    ,INDEX (type)
    ,INDEX (expense_datetime)
+   ,FOREIGN KEY (source_name) REFERENCES order_sources (source_name)
    ,PRIMARY KEY(id)
 ) ;
 
