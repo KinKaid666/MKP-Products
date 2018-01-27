@@ -60,8 +60,6 @@ unless (Email::Valid->address($email)) {
     die "Please enter a valid e-mail address." ;
 }
 
-print "\$username = $username, \$password = $password, \$email = $email, \$realname = $realname\n" ;
-
 # check the db first and be sure the username isn't already registered
 my $dbh = DBI->connect( "dbi:mysql:usertable", "usertable", "2018userLogin") or die "Can't connect to db: $DBI::errstr" ;
 my $sth = $dbh->prepare("select * from users where username = ?") or die $DBI::errstr ;
