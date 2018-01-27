@@ -1,6 +1,6 @@
 #!/usr/bin/zsh
 
-REPORT_LOADER=/home/ericferg/mkp/bin/mkp_inventory_loader.pl
+REPORT_LOADER=/home/ericferg/mkp/bin/mkp-inventory-loader.pl
 REPORT_DIR=/mkp/reports/inventory ;
 BACKUP_DIR=/mkp/loaded/inventory ;
 

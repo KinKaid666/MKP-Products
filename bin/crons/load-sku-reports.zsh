@@ -1,6 +1,6 @@
 #!/usr/bin/zsh
 
-REPORT_LOADER=/home/ericferg/mkp/bin/mkp_sku_loader.pl
+REPORT_LOADER=/home/ericferg/mkp/bin/mkp-sku-loader.pl
 REPORT_DIR=/mkp/reports/skus ;
 BACKUP_DIR=/mkp/loaded/skus ;
 
