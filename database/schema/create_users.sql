@@ -13,13 +13,17 @@ GRANT SELECT ON mkp_products.* TO markprey_ro@'%' ;
 
 --
 -- Create a user who can create reports
-CREATE USER mkp_reporter@localhost IDENTIFIED BY 'mkp_reporter_2018' ;
-GRANT SELECT ON mkp_products.* TO mkp_reporter@localhost ;
+CREATE USER mkp_reporter@localhost IDENTIFIED BY 'mkp_reporter_2018' ; GRANT SELECT ON mkp_products.* TO mkp_reporter@localhost ;
 
 --
 -- Create a user who can load orders
 CREATE USER mkp_loader@localhost IDENTIFIED BY 'mkp_loader_2018' ;
 GRANT INSERT,SELECT,UPDATE,DELETE ON mkp_products.* TO mkp_loader@localhost ;
+
+--
+-- Create user session manager
+CREATE USER usertable@localhost IDENTIFIED BY 'jutedi2' ;
+GRANT INSERT,SELECT,UPDATE,DELETE ON usertable.* TO usertable@localhost ;
 
 --
 -- reload all the privileges

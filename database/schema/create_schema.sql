@@ -1,6 +1,34 @@
 --
 -- Create the database
 CREATE DATABASE IF NOT EXISTS mkp_products ;
+CREATE DATABASE IF NOT EXISTS usertable ;
+
+--
+-- switch to the user session
+use usertable ;
+
+--
+-- create schema for users
+CREATE TABLE IF NOT EXISTS users
+(
+    username  VARCHAR(50) NOT NULL -- Channel where order was taken
+   ,password  VARCHAR(50) NOT NULL -- Channel where order was taken
+   ,status    VARCHAR(50) NOT NULL -- Channel where order was taken
+   ,realname  VARCHAR(50) NOT NULL -- Channel where order was taken
+   ,email     VARCHAR(50) NOT NULL -- Channel where order was taken
+   ,PRIMARY KEY(username)
+) ;
+
+--
+-- create schema for users
+CREATE TABLE IF NOT EXISTS user_cookies
+(
+    cookie_id     VARCHAR(50)  NOT NULL
+   ,username      VARCHAR(50)  NOT NULL
+   ,creation_time TIMESTAMP    NOT NULL
+   ,remote_ip     VARCHAR(150) NOT NULL
+   ,PRIMARY KEY(username)
+) ;
 
 --
 -- switch to the newly created db
@@ -297,3 +325,36 @@ BEGIN
     set NEW.latest_user = USER() ;
 END //
 DELIMITER ;
+--
+-- SKU Domain data
+CREATE TABLE if not exists active_sources
+(
+    sku             VARCHAR(20)   NOT NULL                                                       -- our internal sku id
+   ,sku_source_id   VARCHAR(50)       NULL                                                       -- unique identifier for this SKU on this source
+   ,source_name     VARCHAR(50)       NULL                                                       -- the website in question
+   ,active          BOOLEAN       NOT NULL                                                       -- is the sku active at this source
+   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
+   ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
+   ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,FOREIGN KEY (source_name) REFERENCES order_sources (source_name)
+   ,PRIMARY KEY (sku)
+) ;
+
+DESCRIBE active_sources ;
+--
+-- Create trigger to get the use who created or udpated
+DELIMITER //
+CREATE TRIGGER active_source_create_trigger BEFORE INSERT on active_sources
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER active_source_update_trigger BEFORE UPDATE on active_sources
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
