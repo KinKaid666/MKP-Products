@@ -1,43 +1,53 @@
-#!/usr/bin/perl -wT
+#!/usr/bin/perl -w
 use Email::Valid ;
 use DBI ;
 use Getopt::Long ;
+
 use strict ;
 
 my %options ;
 &GetOptions(
-    "username=s"   => \$options{database},
+    "username=s"   => \$options{username},
     "password=s"   => \$options{password},
     "name=s"       => \$options{name},
     "email=s"      => \$options{email},
-    "timing"       => sub { $options{timing}++ },
-    "debug"        => sub { $options{debug}++ },
     "usage|help|?" => sub { &usage_and_die(0) },
 ) || &usage_and_die(1) ;
 
 if( not defined $options{username} and
-    not defined $options{password} and
     not defined $options{name} and
     not defined $options{email} )
 {
     die "--username, --password, --name, and --email are mandatory!" ;
 }
 
-my $dbh = DBI->connect( "dbi:mysql:usertable", "usertable", "jutedi2") or die "Can't connect to db: $DBI::errstr" ;
-
 my $username = $options{username} ;
 my $password = $options{password} ;
 my $realname = $options{name} ;
 my $email    = $options{email} ;
 
-# be sure the username is alphanumeric - no spaces or funny characters
-if ($username !~ /^\w{3,}$/) {
-    die "Please use an alphanumeric username at least 3 letters long, with no spaces." ;
+if( not defined $password )
+{
+    print "Enter password: " ;
+    system('/bin/stty', '-echo');  # Disable echoing
+    my $password1 = <>;
+    chomp $password1 ;
+    system('/bin/stty', 'echo');   # Turn it back on
+    print "\nEnter password again: " ;
+    system('/bin/stty', '-echo');  # Disable echoing
+    my $password2 = <>;
+    chomp $password2 ;
+    system('/bin/stty', 'echo');   # Turn it back on
+    print "\n" ;
+    die "Passwords do not match!" if $password1 ne $password2 ;
+
+    $password = $password1 ;
 }
 
-# be sure their real name isn't blank
-if ($realname eq "") {
-    die "Please enter your real name." ;
+# be sure the username is alphanumeric - no spaces or funny characters
+if ($username !~ /^\w{3,}$/)
+{
+    die "Please use an alphanumeric username at least 3 letters long, with no spaces." ;
 }
 
 # be sure the password isn't blank or shorter than 6 chars
@@ -50,7 +60,10 @@ unless (Email::Valid->address($email)) {
     die "Please enter a valid e-mail address." ;
 }
 
+print "\$username = $username, \$password = $password, \$email = $email, \$realname = $realname\n" ;
+
 # check the db first and be sure the username isn't already registered
+my $dbh = DBI->connect( "dbi:mysql:usertable", "usertable", "jutedi2") or die "Can't connect to db: $DBI::errstr" ;
 my $sth = $dbh->prepare("select * from users where username = ?") or die $DBI::errstr ;
 $sth->execute($username) or &dbdie ;
 if (my $rec = $sth->fetchrow_hashref) {
@@ -61,7 +74,7 @@ if (my $rec = $sth->fetchrow_hashref) {
 # version in the database.
 my $encpass = &encrypt($password) ;
 
-$sth = $dbh->prepare("insert into users values(?, ?, ?, ?, ?)")  or die $DBI::errstr ;
+$sth = $dbh->prepare("insert into users (username, password, status, realname, email) values(?, ?, ?, ?, ?)")  or die $DBI::errstr ;
 $sth->execute($username, $encpass, "CURRENT", $realname, $email)  or die $DBI::errstr ;
 
 sub encrypt {
