@@ -22,7 +22,7 @@ GRANT INSERT,SELECT,UPDATE,DELETE ON mkp_products.* TO mkp_loader@localhost ;
 
 --
 -- Create user session manager
-CREATE USER usertable@localhost IDENTIFIED BY 'jutedi2' ;
+CREATE USER usertable@localhost IDENTIFIED BY '2018userLogin' ;
 GRANT INSERT,SELECT,UPDATE,DELETE ON usertable.* TO usertable@localhost ;
 
 --
