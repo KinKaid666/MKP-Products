@@ -79,7 +79,7 @@ if( defined $options{frequency} )
 }
 else
 {
-    if( not $options{datetime} =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/ )
+    if( not defined $options{datetime} or not $options{datetime} =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$/ )
     {
         print STDERR "--datetime must be in the following format: YYYY-MM-DD HH:MM:SS.\n" ;
         &usage_and_die(1) ;
@@ -156,7 +156,6 @@ sub usage_and_die
 This program expenses to the database
 
 usage: $0 [options]
---database      database to use
 --source_name   website that generated the expense (default: www.mkpproducts.com)
 --type          type of expense
 --description   description of the expense
