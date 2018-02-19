@@ -61,7 +61,7 @@ sub goto_login
     # by passing the attempted URL on to login.cgi, you can
     # redirect to that URL once they successfully log in
     my $url = $ENV{REQUEST_URI};
-    print redirect("http://prod.mkpproducts.com/login.cgi");
+    print redirect("http://prod.mkpproducts.com/login.cgi" . (defined $url ? "?$url":""));
     exit;
 }
 

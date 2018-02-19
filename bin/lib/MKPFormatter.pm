@@ -103,7 +103,7 @@ sub format_percent
 sub nvl
 {
     my $val  = shift ;
-    my $nval = shift || 0 ;
+    my $nval = shift || "" ;
 
     my $rval = $nval ;
     $rval = $val if defined $val ;

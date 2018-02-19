@@ -9,16 +9,22 @@ CREATE USER ericferg_ro@'%' IDENTIFIED BY 'ericferg_ro_2018' ;
 CREATE USER markprey_ro@'%' IDENTIFIED BY 'markprey_ro_2018' ;
 
 GRANT SELECT ON mkp_products.* TO ericferg_ro@'%' ;
+GRANT SELECT ON mkp_products2.* TO ericferg_ro@'%' ;
 GRANT SELECT ON mkp_products.* TO markprey_ro@'%' ;
 
 --
 -- Create a user who can create reports
-CREATE USER mkp_reporter@localhost IDENTIFIED BY 'mkp_reporter_2018' ; GRANT SELECT ON mkp_products.* TO mkp_reporter@localhost ;
+CREATE USER mkp_reporter@localhost IDENTIFIED BY 'mkp_reporter_2018' ;
+GRANT SELECT ON mkp_products.* TO mkp_reporter@localhost ;
+GRANT SELECT ON mkp_products2.* TO mkp_reporter@localhost ;
 
 --
 -- Create a user who can load orders
 CREATE USER mkp_loader@localhost IDENTIFIED BY 'mkp_loader_2018' ;
 GRANT INSERT,SELECT,UPDATE,DELETE ON mkp_products.* TO mkp_loader@localhost ;
+
+CREATE USER mkp_loader2@localhost IDENTIFIED BY 'mkp_loader_2018' ;
+GRANT INSERT,SELECT,UPDATE,DELETE ON mkp_products2.* TO mkp_loader2@localhost ;
 
 --
 -- Create user session manager

@@ -1,34 +1,6 @@
 --
 -- Create the database
 CREATE DATABASE IF NOT EXISTS mkp_products ;
-CREATE DATABASE IF NOT EXISTS usertable ;
-
---
--- switch to the user session
-use usertable ;
-
---
--- create schema for users
-CREATE TABLE IF NOT EXISTS users
-(
-    username  VARCHAR(50) NOT NULL -- Channel where order was taken
-   ,password  VARCHAR(50) NOT NULL -- Channel where order was taken
-   ,status    VARCHAR(50) NOT NULL -- Channel where order was taken
-   ,realname  VARCHAR(50) NOT NULL -- Channel where order was taken
-   ,email     VARCHAR(50) NOT NULL -- Channel where order was taken
-   ,PRIMARY KEY(username)
-) ;
-
---
--- create schema for users
-CREATE TABLE IF NOT EXISTS user_cookies
-(
-    cookie_id     VARCHAR(50)  NOT NULL
-   ,username      VARCHAR(50)  NOT NULL
-   ,creation_time TIMESTAMP    NOT NULL
-   ,remote_ip     VARCHAR(150) NOT NULL
-   ,PRIMARY KEY(username)
-) ;
 
 --
 -- switch to the newly created db
@@ -313,13 +285,13 @@ desc onhand_inventory_reports ;
 --
 -- Create trigger to get the use who created or udpated
 DELIMITER //
-CREATE TRIGGER onhand_inventory_reprot_create_trigger BEFORE INSERT on onhand_inventory_reports
+CREATE TRIGGER onhand_inventory_report_create_trigger BEFORE INSERT on onhand_inventory_reports
 FOR EACH ROW
 BEGIN
     set NEW.creation_user = USER() ;
     set NEW.latest_user = USER() ;
 END //
-CREATE TRIGGER onhand_inventory_reprot_update_trigger BEFORE UPDATE on onhand_inventory_reports
+CREATE TRIGGER onhand_inventory_report_update_trigger BEFORE UPDATE on onhand_inventory_reports
 FOR EACH ROW
 BEGIN
     set NEW.latest_user = USER() ;
