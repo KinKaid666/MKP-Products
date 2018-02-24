@@ -32,10 +32,6 @@ DROP TRIGGER IF EXISTS expsense_update_trigger ;
 DROP TRIGGER IF EXISTS expsense_create_trigger ;
 DROP TABLE IF EXISTS expsenses ;
 
-DROP TRIGGER IF EXISTS sku_order_update_trigger ;
-DROP TRIGGER IF EXISTS sku_order_create_trigger ;
-DROP TABLE IF EXISTS sku_orders ;
-
 DROP TRIGGER IF EXISTS order_channel_update_trigger ;
 DROP TRIGGER IF EXISTS order_channel_create_trigger ;
 DROP TABLE IF EXISTS order_channels ;
@@ -51,6 +47,10 @@ DROP TABLE IF EXISTS financial_shipment_events ;
 DROP TRIGGER IF EXISTS feg_update_trigger ;
 DROP TRIGGER IF EXISTS feg_create_trigger ;
 DROP TABLE IF EXISTS financial_event_groups ;
+
+DROP TRIGGER IF EXISTS occ_update_trigger ;
+DROP TRIGGER IF EXISTS occ_create_trigger ;
+DROP TABLE IF EXISTS order_channel_credentials ;
 
 DROP DATABASE IF EXISTS mkp_products ;
 

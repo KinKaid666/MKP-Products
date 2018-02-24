@@ -28,3 +28,4 @@ INSERT INTO vendors ( vendor_name, description ) VALUES
 INSERT INTO inventory_conditions ( condition_name, description ) VALUES
     ('SELLABLE', 'Available to sell'),
     ('UNSELLABLE', 'Not currently for sale') ;
+
