@@ -40,6 +40,18 @@ DROP TRIGGER IF EXISTS order_channel_update_trigger ;
 DROP TRIGGER IF EXISTS order_channel_create_trigger ;
 DROP TABLE IF EXISTS order_channels ;
 
+DROP TRIGGER IF EXISTS fee_update_trigger ;
+DROP TRIGGER IF EXISTS fee_create_trigger ;
+DROP TABLE IF EXISTS financial_expense_events ;
+
+DROP TRIGGER IF EXISTS fse_update_trigger ;
+DROP TRIGGER IF EXISTS fse_create_trigger ;
+DROP TABLE IF EXISTS financial_shipment_events ;
+
+DROP TRIGGER IF EXISTS feg_update_trigger ;
+DROP TRIGGER IF EXISTS feg_create_trigger ;
+DROP TABLE IF EXISTS financial_event_groups ;
+
 DROP DATABASE IF EXISTS mkp_products ;
 
 use usertable

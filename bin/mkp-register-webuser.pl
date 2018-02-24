@@ -14,8 +14,8 @@ my %options ;
     "usage|help|?" => sub { &usage_and_die(0) },
 ) || &usage_and_die(1) ;
 
-if( not defined $options{username} and
-    not defined $options{name} and
+if( not defined $options{username} or
+    not defined $options{name}     or
     not defined $options{email} )
 {
     die "--username, --password, --name, and --email are mandatory!" ;
