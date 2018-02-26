@@ -316,7 +316,6 @@ my $mws ;
     {
         my ($key,$value) = split('=',$cred) ;
         $value =~ s/^"(.*)"$/$1/g ;
-        print "inserting '" . $key . "' = '" . $value . "'\n" ;
         $credentials->{$key} = $value ;
     }
     $mws = Amazon::MWS::Client->new(%$credentials) ;

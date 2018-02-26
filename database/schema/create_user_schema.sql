@@ -28,3 +28,13 @@ CREATE TABLE IF NOT EXISTS user_cookies
    ,remote_ip     VARCHAR(150) NOT NULL
    ,PRIMARY KEY(username)
 ) ;
+
+--
+-- create schema for user viewss
+CREATE TABLE IF NOT EXISTS user_views
+(
+    username      VARCHAR(50)  NOT NULL -- Channel where order was taken
+   ,remote_ip     VARCHAR(150) NOT NULL
+   ,page          VARCHAR(150) NOT NULL
+   ,creation_time TIMESTAMP    NOT NULL
+) ;

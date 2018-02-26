@@ -3,7 +3,7 @@ package MKPUser ;
 use base qw(Exporter);
 use strict;
 
-our @EXPORT = qw($userdbh validate dienice dbdie);
+our @EXPORT = qw($userdbh validate record_visit dienice dbdie);
 our @EXPORT_OK = qw();
 
 use DBI;
@@ -43,7 +43,20 @@ sub validate
         # no cookie is set. go to the login page.
         &goto_login() ;
     }
+    &record_visit($username) ;
     return $username ;
+}
+
+sub record_visit
+{
+    my $user = shift ;
+    my $ip = $ENV{REMOTE_ADDR} ;
+    my $url = $ENV{REQUEST_URI};
+    use constant INSERT_USER_VIEW => qq (
+        insert into user_views (username, remote_ip, page ) values ( ?, ?, ? )
+    ) ;
+    my $i_sth = $userdbh->prepare(${\INSERT_USER_VIEW}) ;
+    $i_sth->execute($user, $ip, $url) or &dbdie ;
 }
 
 sub dienice
@@ -58,8 +71,6 @@ sub dienice
 
 sub goto_login
 {
-    # by passing the attempted URL on to login.cgi, you can
-    # redirect to that URL once they successfully log in
     my $url = $ENV{REQUEST_URI};
     $url =~ s/^\/(.*)$/$1/g if defined $url ;
     print redirect("http://prod.mkpproducts.com/login.cgi" . ((defined $url) ? "?$url":""));
