@@ -514,7 +514,7 @@ my $financialExpenseEvents ;
                                 elsif ( $fee->{ChargeType} =~ m/^ShippingTax$/    ) { $shipping_charges_tax += $fee->{ChargeAmount}->{CurrencyAmount} ; }
                                 elsif ( $fee->{ChargeType} =~ m/^GiftWrap$/       ) { $giftwrap_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ; }
                                 elsif ( $fee->{ChargeType} =~ m/^GiftWrapTax$/    ) { $giftwrap_charges_tax += $fee->{ChargeAmount}->{CurrencyAmount} ; }
-                                else                                                { print STDERR "unknown fee . $fee->{ChargeType}\n" ;  $products_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ;}
+                                else                                                { print STDERR "unknown fee . $fee->{ChargeType}\n" if $options{verbose} ;  $products_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ;}
                             }
                         }
 
@@ -676,7 +676,7 @@ my $financialExpenseEvents ;
                                 elsif ( $fee->{ChargeType} =~ m/^ShippingTax$/    ) { $shipping_charges_tax += $fee->{ChargeAmount}->{CurrencyAmount} ; }
                                 elsif ( $fee->{ChargeType} =~ m/^GiftWrap$/       ) { $giftwrap_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ; }
                                 elsif ( $fee->{ChargeType} =~ m/^GiftWrapTax$/    ) { $giftwrap_charges_tax += $fee->{ChargeAmount}->{CurrencyAmount} ; }
-                                else                                                { print STDERR "unknown fee . $fee->{ChargeType}\n" ;  $products_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ;}
+                                else                                                { print STDERR "unknown fee . $fee->{ChargeType}\n" if $options{verbose} ;  $products_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ;}
                             }
                         }
 

@@ -38,7 +38,8 @@ $options{verbose}  = 0 ; # default
     "password=s"     => \$options{password},
     "dumper"         => \$options{dumper},
     "timing|t+"      => \$options{timing},
-    "verbose|d+"     => \$options{verbose},
+    "status=s@"      => \$options{statuses},
+    "verbose|v+"     => \$options{verbose},
     "usage|help|?"   => sub { &usage_and_die(0) },
 ) || &usage_and_die(1) ;
 
@@ -68,9 +69,78 @@ my $mws ;
         $value =~ s/^"(.*)"$/$1/g ;
         $credentials->{$key} = $value ;
     }
+    $credentials->{logfile} = "/var/tmp/mws_log.txt" ;
+    $credentials->{debug} = 1 ;
     $mws = Amazon::MWS::Client->new(%$credentials) ;
 }
 
+my @shipmentStatuses = ("WORKING","SHIPPED","IN_TRANSIT","DELIVERED","CHECKED_IN","RECEIVING") ;
+
+#
+# Check to see if the user has overwritten the default statuses
+if( defined $options{statuses} )
+{
+    @shipmentStatuses = () ;
+    foreach my $s (@{$options{statuses}})
+    {
+        push @shipmentStatuses, $s ;
+    }
+}
+
+#
+# Pull the MWS Inbound Shipment Information
+my $req = $mws->ListInboundShipments(ShipmentStatusList => \@shipmentStatuses) ;
+while(1)
+{
+    my $timer = MKPTimer->new("MWS Pull", *STDOUT, $options{timing}, 1) ;
+    print Dumper($req) if $options{dumper} ;
+
+    if( exists $req->{ShipmentData}->{member} )
+    {
+        foreach my $shipment (@{$req->{ShipmentData}->{member}})
+        {
+            print "ShipmentId = $shipment->{ShipmentId} \n" if $options{verbose} > 0 ;
+            print "\tShipmentStatus = $shipment->{ShipmentStatus}\n" if $options{verbose} > 1 ;
+            print "\tShipmentName   = $shipment->{ShipmentName}  \n" if $options{verbose} > 1 ;
+            print "\tDestinationFulfillmentCenterId   = $shipment->{DestinationFulfillmentCenterId}  \n" if $options{verbose} > 1 ;
+            print "\tShipFromAddress  = " . $shipment->{ShipFromAddress}->{Name}         . " " .
+                                            $shipment->{ShipFromAddress}->{AddressLine1} . " " .
+                                            $shipment->{ShipFromAddress}->{City}         . ", " .
+                                            $shipment->{ShipFromAddress}->{StateOrProvinceCode} . " " .
+                                            $shipment->{ShipFromAddress}->{PostalCode}   . " " .
+                                            $shipment->{ShipFromAddress}->{CountryCode}  . "\n" if $options{verbose} > 1 ;
+
+            my $sReq = $mws->ListInboundShipmentItems(ShipmentId => $shipment->{ShipmentId}) ;
+            while(1)
+            {
+                print Dumper($sReq) if $options{dumper} ;
+                if( exists $sReq->{ItemData}->{member} )
+                {
+                    foreach my $item (@{&force_array($sReq->{ItemData}->{member})})
+                    {
+                        print "\tSKU = $item->{SellerSKU}\n" if $options{verbose} > 1 ;
+                        print "\t\tQuantityShipped       = $item->{QuantityShipped}      \n" if $options{verbose} > 2 ;
+                        print "\t\tQuantityInCase        = $item->{QuantityInCase}       \n" if $options{verbose} > 2 ;
+                        print "\t\tQuantityReceived      = $item->{QuantityReceived}     \n" if $options{verbose} > 2 ;
+                        print "\t\tFulfillmentNetworkSKU = $item->{FulfillmentNetworkSKU}\n" if $options{verbose} > 2 ;
+                    }
+                }
+                last if not defined $sReq->{NextToken} ;
+                $sReq = $mws->ListInboundShipmentItemsByNextToken(NextToken => $sReq->{NextToken}) ;
+            }
+        }
+    }
+    last if not defined $req->{NextToken} ;
+    $req = $mws->ListInboundShipmentsByNextToken(NextToken => $req->{NextToken}) ;
+}
+
+sub force_array
+{
+    my $array = shift ;
+
+    $array = [ $array ] if( ref $array ne "ARRAY" ) ;
+    return $array ;
+}
 
 sub usage_and_die
 {
@@ -80,15 +150,11 @@ sub usage_and_die
 # 80 character widge line
 #23456789!123456789"1234567890123456789$123456789%123456789^123456789&123456789*
     print <<USAGE;
-This program downloads financial data from Amazon MWS and loads it locally
-    DEFAULT: Download the current day
+This program downloads all inbound shipments
+    DEFAULT: "WORKING","SHIPPED","IN_TRANSIT","DELIVERED","CHECKED_IN","RECEIVING"
 
 usage: $0 [options]
---start         the start time (YYYY-MM-DD) you want to pull
---end           the end   time (YYYY-MM-DD) you want to pull
-                    if end is in the future, it'll pull to current date
---duration      alternatively you can use either --start or --end and --duration
-                        --duration=(MONTH|WEEK|DAY)
+--status=STATUS include 'STATUS' as part of the request
 --usage|help|?  print this help
 USAGE
     exit($rc) ;
