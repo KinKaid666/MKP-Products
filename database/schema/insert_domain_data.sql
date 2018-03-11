@@ -12,7 +12,7 @@ INSERT INTO order_sources ( source_name ) VALUES
 -- Insert vendors
 INSERT INTO vendors ( vendor_name, description ) VALUES
     ( 'Wooster'            ,'' ),
-    ( 'Adfors FIbaFuse'    ,'' ),
+    ( 'Adfors FibaFuse'    ,'' ),
     ( 'HANDy'              ,'' ),
     ( 'Hyde Tools'         ,'' ),
     ( 'MaxxGrip'           ,'' ),

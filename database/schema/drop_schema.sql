@@ -52,6 +52,14 @@ DROP TRIGGER IF EXISTS occ_update_trigger ;
 DROP TRIGGER IF EXISTS occ_create_trigger ;
 DROP TABLE IF EXISTS order_channel_credentials ;
 
+DROP TRIGGER IF EXISTS isi_update_trigger ;
+DROP TRIGGER IF EXISTS isi_create_trigger ;
+DROP TABLE IF EXISTS inbound_shipment_items ;
+
+DROP TRIGGER IF EXISTS inbound_shipment_update_trigger ;
+DROP TRIGGER IF EXISTS inbound_shipment_create_trigger ;
+DROP TABLE IF EXISTS inbound_shipments ;
+
 DROP DATABASE IF EXISTS mkp_products ;
 
 use usertable

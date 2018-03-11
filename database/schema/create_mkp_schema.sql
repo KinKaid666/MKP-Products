@@ -440,3 +440,71 @@ BEGIN
 END //
 DELIMITER ;
 
+CREATE TABLE IF NOT EXISTS inbound_shipments
+(
+    id                   INT UNSIGNED NOT NULL AUTO_INCREMENT                                        -- Unique ID for the record
+   ,source_name          VARCHAR(50)  NOT NULL                                                       -- Channel where order was taken
+   ,condition_name       VARCHAR(50)  NOT NULL                                                       -- shipment status
+   ,ext_shipment_name    VARCHAR(50)  NOT NULL                                                       -- Source Name's name for the shipment
+   ,destination          VARCHAR(50)  NOT NULL                                                       -- Warehouse destination
+   ,latest_user          VARCHAR(30)      NULL                                                       -- Latest user to update row
+   ,latest_update        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user        VARCHAR(30)      NULL                                                       -- User that created the row
+   ,creation_date        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,PRIMARY KEY(id)
+   ,FOREIGN KEY (source_name) REFERENCES order_sources (source_name)
+) ;
+
+DESCRIBE inbound_shipments ;
+
+--
+-- Create trigger to get the user who created or udpated
+DELIMITER //
+CREATE TRIGGER inbound_shipment_create_trigger BEFORE INSERT on inbound_shipments
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER inbound_shipment_update_trigger BEFORE UPDATE on inbound_shipments
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
+CREATE TABLE IF NOT EXISTS inbound_shipment_items
+(
+    id                   INT UNSIGNED NOT NULL AUTO_INCREMENT                                        -- Unique ID for the record
+   ,sku                  VARCHAR(20)  NOT NULL                                                       -- Our internal sku id
+   ,inbound_shipment_id  INT UNSIGNED NOT NULL                                                       -- Parent id
+   ,quantity_shipped     INT UNSIGNED NOT NULL                                                       -- Quantity shipped to destination
+   ,quantity_in_case     INT UNSIGNED NOT NULL                                                       -- Quantity of sku per case
+   ,quantity_received    INT UNSIGNED NOT NULL                                                       -- Quantity received by destination
+   ,latest_user          VARCHAR(30)      NULL                                                       -- Latest user to update row
+   ,latest_update        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user        VARCHAR(30)      NULL                                                       -- User that created the row
+   ,creation_date        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,PRIMARY KEY(id)
+   ,FOREIGN KEY (inbound_shipment_id) REFERENCES inbound_shipments (id)
+   ,FOREIGN KEY (sku) REFERENCES skus (sku)
+) ;
+
+DESCRIBE inbound_shipment_items ;
+
+--
+-- Create trigger to get the user who created or udpated
+DELIMITER //
+CREATE TRIGGER isi_create_trigger BEFORE INSERT on inbound_shipment_items
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER isi_update_trigger BEFORE UPDATE on inbound_shipment_items
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
