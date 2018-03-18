@@ -203,6 +203,42 @@ DELIMITER ;
 
 --
 -- inventory reports
+CREATE TABLE if not exists realtime_inventory
+(
+    sku                VARCHAR(20)   NOT NULL                                                       -- our internal sku id
+   ,source_name        VARCHAR(50)   NOT NULL                                                       -- Channel where inventroy is
+   ,quantity_instock   INT UNSIGNED  NOT NULL                                                       -- Number of units
+   ,quantity_total     INT UNSIGNED  NOT NULL                                                       -- Number of units in the network
+   ,instock_date       DATE              NULL                                                       -- date estimated to be in-stock
+   ,latest_user        VARCHAR(30)       NULL                                                       -- Latest user to update row
+   ,latest_update      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user      VARCHAR(30)       NULL                                                       -- User that created the row
+   ,creation_date      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,FOREIGN KEY (sku)            REFERENCES skus (sku)
+   ,FOREIGN KEY (source_name)    REFERENCES order_sources (source_name)
+   ,PRIMARY KEY (sku,source_name)
+) ;
+
+desc realtime_inventory ;
+
+--
+-- Create trigger to get the use who created or udpated
+DELIMITER //
+CREATE TRIGGER realtime_inventory_create_trigger BEFORE INSERT on realtime_inventory
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER realtime_inventory_update_trigger BEFORE UPDATE on realtime_inventory
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
+--
+-- inventory reports
 CREATE TABLE if not exists onhand_inventory_reports
 (
     id              INT UNSIGNED  NOT NULL AUTO_INCREMENT                                        -- primary key
@@ -211,7 +247,7 @@ CREATE TABLE if not exists onhand_inventory_reports
    ,source_name     VARCHAR(50)   NOT NULL                                                       -- Channel where inventroy is
    ,condition_name  VARCHAR(30)   NOT NULL                                                       -- Current condition of inventory
    ,quantity        INT UNSIGNED  NOT NULL                                                       -- Number of units
-   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
+   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row
    ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
    ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
    ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created

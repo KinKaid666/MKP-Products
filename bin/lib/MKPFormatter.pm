@@ -8,6 +8,7 @@ use vars qw(@ISA @EXPORT) ;
 require Exporter;
 use POSIX ;
 use Locale::Currency::Format ;
+use DateTime::Format::ISO8601 ;
 
 @ISA = qw (Exporter);
 @EXPORT = qw (format_column
@@ -16,7 +17,34 @@ use Locale::Currency::Format ;
               format_decimal
               format_percent
               format_currency
+              $timezone
+              convert_amazon_datetime
+              force_array
               nvl             );
+
+our $timezone ;
+{
+    open my $tz, '<', '/etc/timezone' or die $!;
+    my $timezone_name = <$tz>;
+    chomp($timezone_name) ;
+    $timezone = DateTime::TimeZone->new( name => $timezone_name );
+}
+
+
+sub convert_amazon_datetime
+{
+    my $date = DateTime::Format::ISO8601->parse_datetime(shift) ;
+    $date->set_time_zone($timezone) ;
+    return $date ;
+}
+
+sub force_array
+{
+    my $array = shift ;
+
+    $array = [ $array ] if( ref $array ne "ARRAY" ) ; 
+    return $array ;
+}
 
 #
 # print $value no more than $length, justified 0 = left, 1 = right

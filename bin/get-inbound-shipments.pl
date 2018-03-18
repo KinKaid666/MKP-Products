@@ -188,7 +188,7 @@ while(1)
 
             push @shipments, $shipment ;
             my $sReq = $mws->ListInboundShipmentItems(ShipmentId => $shipment->{ShipmentId}) ;
-            sleep(15) ;
+            sleep(1) ;
             while(1)
             {
                 if( exists $sReq->{ItemData}->{member} )
@@ -302,14 +302,6 @@ foreach my $s (@shipments)
             }
         }
     }
-}
-
-sub force_array
-{
-    my $array = shift ;
-
-    $array = [ $array ] if( ref $array ne "ARRAY" ) ;
-    return $array ;
 }
 
 sub usage_and_die

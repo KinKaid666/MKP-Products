@@ -5,22 +5,11 @@
 use strict;
 
 use Amazon::MWS::Client ;
-use DateTime;
-use DateTime::Format::ISO8601;
+use DateTime ;
 use Date::Manip ;
 use Data::Dumper ;
 use Getopt::Long ;
 use DBI ;
-
-#
-# Default to local machine time
-my $timezone ;
-{
-    open my $tz, '<', '/etc/timezone' or die $!;
-    my $timezone_name = <$tz>;
-    chomp($timezone_name) ;
-    $timezone = DateTime::TimeZone->new( name => $timezone_name );
-}
 
 use Encode ;
 binmode(STDOUT, ":utf8");
@@ -264,7 +253,7 @@ if(defined $options{start})
 }
 else
 {
-    $start = UnixDate(DateTime->nonow()->set_time_zone($timezone),"%Y-%m-%d") ;
+    $start = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y-%m-%d") ;
 }
 
 if(defined $options{end})
@@ -1118,21 +1107,6 @@ sub die_or_set_currency
 
     die "mix currencies not supported" if $current_cc ne $new_cc ;
     return $new_cc ;
-}
-
-sub force_array
-{
-    my $array = shift ;
-
-    $array = [ $array ] if( ref $array ne "ARRAY" ) ;
-    return $array ;
-}
-
-sub convert_amazon_datetime
-{
-    my $date = DateTime::Format::ISO8601->parse_datetime(shift) ;
-    $date->set_time_zone($timezone) ;
-    return $date ;
 }
 
 sub usage_and_die

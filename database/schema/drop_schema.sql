@@ -4,6 +4,10 @@ DROP TRIGGER IF EXISTS active_source_update_trigger ;
 DROP TRIGGER IF EXISTS active_source_create_trigger ;
 DROP TABLE IF EXISTS active_sources ;
 
+DROP TRIGGER IF EXISTS realtime_inventory_update_trigger ;
+DROP TRIGGER IF EXISTS realtime_inventory_create_trigger ;
+DROP TABLE IF EXISTS realtime_inventory ;
+
 DROP TRIGGER IF EXISTS onhand_inventory_report_update_trigger ;
 DROP TRIGGER IF EXISTS onhand_inventory_report_create_trigger ;
 DROP TABLE IF EXISTS onhand_inventory_reports ;
