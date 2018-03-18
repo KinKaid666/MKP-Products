@@ -2,8 +2,7 @@
 #
 # Each task to run has to be defined through a single line
 # indicating with different fields when the task will be run
-# and what command to run for the task
-#
+# and what command to run for the task #
 # To define the time you can provide concrete values for
 # minute (m), hour (h), day of month (dom), month (mon),
 # and day of week (dow) or use '*' in these fields (for 'any').#
@@ -21,11 +20,19 @@
 #
 # m h  dom mon dow   command
 
- 0 * * * * /home/ericferg/mkp/bin/crons/load-inventory-reports.zsh
-15 * * * * /home/ericferg/mkp/bin/crons/load-order-reports.zsh
-30 * * * * /home/ericferg/mkp/bin/crons/load-sku-cost-reports.zsh
-45 * * * * /home/ericferg/mkp/bin/crons/load-sku-reports.zsh
+# 5 * * * * /home/ericferg/mkp/bin/crons/load-order-reports.zsh
+#30 * * * * /home/ericferg/mkp/bin/crons/load-sku-cost-reports.zsh
+#45 * * * * /home/ericferg/mkp/bin/crons/load-sku-reports.zsh
+#0 * * * * /home/ericferg/mkp/bin/crons/load-inventory-reports.zsh
+#0 0 * * * /home/ericferg/mkp/bin/crons/request-inventory-report.zsh
+#0 1 * * * /home/ericferg/mkp/bin/crons/get-inventory-report.zsh
 
 
- 0 0 * * 0 /home/ericferg/mkp/bin/crons/request-inventory-report.zsh
- 0 1 * * 0 /home/ericferg/mkp/bin/crons/get-inventory-report.zsh
+# real-time
+  * * * * * /home/ericferg/mkp/bin/get-inventory.pl
+  * * * * * /home/ericferg/mkp/bin/get-financial-events.pl
+*/6 * * * * /home/ericferg/mkp/bin/get-inbound-shipments.pl
+
+# Flush once a day
+0 0 * * * /home/ericferg/mkp/bin/get-inbound-shipments.pl --status=CLOSED
+0 0 * * * /home/ericferg/mkp/bin/get-inventory.pl --from=2016-01-01
