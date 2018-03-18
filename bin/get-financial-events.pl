@@ -267,7 +267,7 @@ if(defined $options{duration})
 
 if(Date_Cmp(DateTime->now(), $start) < 0)
 {
-    print STDERR "You cannot request a future date window.\n" if $options{verbose} ;
+    print STDERR "You cannot request a future date window.\n" ;
     &usage_and_die(1) ;
 }
 

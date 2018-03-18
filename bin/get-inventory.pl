@@ -59,7 +59,6 @@ use constant UPDATE_ONHAND_INVENTORY => qq(
      where sku = ?
 ) ;
 
-
 #
 # Parse options and set defaults
 my %options ;
@@ -74,12 +73,29 @@ $options{verbose}  = 0 ; # default
     "database=s"     => \$options{database},
     "username=s"     => \$options{username},
     "password=s"     => \$options{password},
+    "from=s"         => \$options{from},
     "dumper"         => \$options{dumper},
     "timing|t+"      => \$options{timing},
     "verbose|v+"     => \$options{verbose},
     "usage|help|?"   => sub { &usage_and_die(0) },
 ) || &usage_and_die(1) ;
 
+if( defined $options{from} and not $options{from} =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ )
+{
+    print STDERR "--from must be in the following format: YYYY-MM-DD.\n" ;
+    &usage_and_die(1) ;
+}
+
+if(defined $options{from} and Date_Cmp(DateTime->now(), $options{from}) < 0)
+{
+    print STDERR "You cannot request a future date.\n" ;
+    &usage_and_die(1) ;
+}
+
+if( not defined $options{from} )
+{
+    $options{from} = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y-%m-%d") ;
+}
 
 # Connect to the database.
 my $dbh ;
@@ -114,8 +130,8 @@ my $mws ;
 #
 # Pull the MWS Inbound Shipment Information
 my $inventoryItems ;
-my $start = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y-%m-%d") ;
-my $req = $mws->ListInventorySupply(QueryStartDateTime => $start) ;
+
+my $req = $mws->ListInventorySupply(QueryStartDateTime => $options{from}) ;
 while(1)
 {
     my $timer = MKPTimer->new("MWS Pull", *STDOUT, $options{timing}, 1) ;
@@ -131,7 +147,7 @@ while(1)
             print "SellerSKU             = $line->{SellerSKU}            \n" if $options{verbose} > 1 ;
             print "FNSKU                 = $line->{FNSKU}                \n" if $options{verbose} > 1 ;
             print "TotalSupplyQuantity   = $line->{TotalSupplyQuantity}  \n" if $options{verbose} > 1 ;
-            if($line->{EarliestAvailability}->{TimepointType} eq "DateTime" )
+            if(exists $line->{EarliestAvailability}->{TimepointType} and $line->{EarliestAvailability}->{TimepointType} eq "DateTime" )
             {
                 $line->{EarliestAvailability}->{DateTime} = &convert_amazon_datetime($line->{EarliestAvailability}->{DateTime}) ;
             }
@@ -206,7 +222,8 @@ sub usage_and_die
 This program downloads current inventory
 
 usage: $0 [options]
---usage|help|?  print this help
+--from=YYYY-MM-DD pull SKUs that have changed as of the specified date [DEFAULT: today]
+--usage|help|?    print this help
 USAGE
     exit($rc) ;
 }
