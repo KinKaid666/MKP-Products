@@ -146,7 +146,6 @@ sub usage_and_die
 This program inserts or updates the skus
 
 usage: $0 [options]
---database     The database to load
 --filename     the filename that contains the SKUs
 --usage|help|? print this help
 USAGE
