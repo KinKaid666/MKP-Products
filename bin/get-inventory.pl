@@ -170,7 +170,7 @@ print Dumper($inventoryItems)    if $options{dumper} ;
 foreach my $sku (keys %{$inventoryItems})
 {
     my $timer = MKPTimer->new("Insert SKU $sku", *STDOUT, $options{timing}, 1) ;
-    print "Inserting sku $sku\n" if $options{verbose} ;
+    print "Inserting/updating sku $sku\n" if $options{verbose} ;
     my $s_sth = $dbh->prepare(${\SELECT_ONHAND_INVENTORY}) ;
     $s_sth->execute($sku) or die "'" . $s_sth->errstr . "'\n" ;
     if( $s_sth->rows > 0 )
@@ -192,7 +192,7 @@ foreach my $sku (keys %{$inventoryItems})
                                     $inventoryItems->{$sku}->{EarliestAvailability}->{DateTime},
                                     $sku) )
             {
-                print STDERR "Failed to update realtime_inventory DBI Error: \"" . $u_sth->errstr . "\"\n" ;
+                print STDERR "Failed to update realtime_inventory for sku $sku, DBI Error: \"" . $u_sth->errstr . "\"\n" ;
             }
         }
 
@@ -206,7 +206,7 @@ foreach my $sku (keys %{$inventoryItems})
                                 $inventoryItems->{$sku}->{TotalSupplyQuantity},
                                 $inventoryItems->{$sku}->{EarliestAvailability}->{DateTime}) )
         {
-            print STDERR "Failed to insert realtime_inventroy, DBI Error: \"" . $i_sth->errstr . "\"\n"
+            print STDERR "Failed to insert realtime_inventroy for sku $sku, DBI Error: \"" . $i_sth->errstr . "\"\n"
         }
     }
 }
