@@ -16,9 +16,39 @@ use Cwd qw(abs_path) ;
 use lib &dirname(&abs_path($0)) . "/lib" ;
 use MKPTimer ;
 
+# mysql> desc skus;
+# +---------------+--------------+------+-----+-------------------+-----------------------------+
+# | Field         | Type         | Null | Key | Default           | Extra                       |
+# +---------------+--------------+------+-----+-------------------+-----------------------------+
+# | sku           | varchar(20)  | NO   | PRI | NULL              |                             |
+# | vendor_name   | varchar(50)  | YES  | MUL | NULL              |                             |
+# | title         | varchar(150) | YES  |     | NULL              |                             |
+# | description   | varchar(500) | YES  |     | NULL              |                             |
+# | latest_user   | varchar(30)  | YES  |     | NULL              |                             |
+# | latest_update | timestamp    | NO   |     | CURRENT_TIMESTAMP | on update CURRENT_TIMESTAMP |
+# | creation_user | varchar(30)  | YES  |     | NULL              |                             |
+# | creation_date | timestamp    | NO   |     | CURRENT_TIMESTAMP |                             |
+# +---------------+--------------+------+-----+-------------------+-----------------------------+
 use constant SKUS_SELECT_STATEMENT => qq( select sku from skus where sku = ? ) ;
 use constant SKUS_UPDATE_STATEMENT => qq( update skus set vendor_name = ?, title = ?, description = ? where sku = ? ) ;
 use constant SKUS_INSERT_STATEMENT => qq( insert into skus ( sku, vendor_name, title, description ) value ( ?, ?, ?, ? ) ) ;
+
+# mysql> desc sku_case_packs ;
+# +---------------+------------------+------+-----+-------------------+-----------------------------+
+# | Field         | Type             | Null | Key | Default           | Extra                       |
+# +---------------+------------------+------+-----+-------------------+-----------------------------+
+# | sku           | varchar(20)      | NO   | PRI | NULL              |                             |
+# | vendor_sku    | varchar(20)      | NO   | PRI | NULL              |                             |
+# | pack_size     | int(10) unsigned | NO   | PRI | NULL              |                             |
+# | latest_user   | varchar(30)      | YES  |     | NULL              |                             |
+# | latest_update | timestamp        | NO   |     | CURRENT_TIMESTAMP | on update CURRENT_TIMESTAMP |
+# | creation_user | varchar(30)      | YES  |     | NULL              |                             |
+# | creation_date | timestamp        | NO   |     | CURRENT_TIMESTAMP |                             |
+# +---------------+------------------+------+-----+-------------------+-----------------------------+
+use constant SKU_CASE_PACKS_SELECT_STATEMENT => qq( select sku, vendor_sku, pack_size from sku_case_packs where sku = ? ) ;
+use constant SKU_CASE_PACKS_UPDATE_STATEMENT => qq( update sku_case_packs set vendor_sku = ?, pack_size = ? where sku = ? ) ;
+use constant SKU_CASE_PACKS_INSERT_STATEMENT => qq( insert into sku_case_packs ( sku, vendor_sku, pack_size ) value ( ?, ?, ? ) ) ;
+
 
 my %options ;
 $options{username} = 'mkp_loader'      ;
@@ -46,9 +76,9 @@ my @skus ;
 # ingest file
 #
 # Example:
-# "sku","vendor name","Title","Description"
-# "MKP-RR013","Wooster","12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2" and 6-1/2" Covers - 12" Length","12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2" and 6-1/2" Covers - 12" Length"
-# "MKP-RR308","Wooster","12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2" Jumbo-Koter Foam Roller Cover - 2 per Package","12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2" Jumbo-Koter Foam Roller Cover - 2 per Package"
+# "sku","vendor name","Title","Description","vendor sku","pack size"
+# "MKP-RR013","Wooster","12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2" and 6-1/2" Covers - 12" Length","12 Pack Wooster RR013 Jumbo-Koter Roller Frame for 4-1/2" and 6-1/2" Covers - 12" Length","RR013","10"
+# "MKP-RR308","Wooster","12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2" Jumbo-Koter Foam Roller Cover - 2 per Package","12 Pack Wooster RR308-4-1/2 Pro Foam 4-1/2" Jumbo-Koter Foam Roller Cover - 2 per Package","RR308","10"
 {
     my $timer = MKPTimer->new("File processing", *STDOUT, $options{timing}, 1) ;
     my $lineNumber = 0 ;
@@ -77,7 +107,14 @@ my @skus ;
         $skuLine->{title}       = $subs[2] ;
         $skuLine->{description} = $subs[3] ;
 
-        die "invalid line $lineNumber : $line " if scalar @subs != 4 ;
+        if( scalar @subs == 6 )
+        {
+            $skuLine->{has_pack_info} = 1 ;
+            $skuLine->{vendor_sku}  = $subs[4] ;
+            $skuLine->{pack_size}   = $subs[5] ;
+        }
+
+        die "invalid line $lineNumber : $line " if( not( scalar @subs == 4 or scalar @subs == 6 ) ) ;
 
         print "Found on line " . $lineNumber . " SKU " . $skuLine->{sku} . " from vendor " . $skuLine->{vendor_name} . "\n" if $options{debug} > 1 ;
         push @skus, $skuLine ;
@@ -109,14 +146,14 @@ my $dbh ;
     my $i_stmt = $dbh->prepare(${\SKUS_INSERT_STATEMENT}) ;
     foreach my $sku (@skus)
     {
-        $s_stmt->execute( $sku->{sku} ) or die $DBI::errstr ;
+        $s_stmt->execute( $sku->{sku} ) or die $s_stmt->errstr ;
 
         if( $s_stmt->rows > 0 )
         {
             print STDOUT "SKU " . $sku->{sku} . " found in DB, updating\n" if $options{debug} > 0 ;
             if( not $u_stmt->execute( $sku->{vendor_name}, $sku->{title}, $sku->{description}, $sku->{sku} ) )
             {
-                print STDERR "Failed to update " . $sku->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+                print STDERR "Failed to update " . $sku->{sku} . ", with error: " . $u_stmt->errstr . "\n" ;
             }
         }
         else
@@ -124,7 +161,40 @@ my $dbh ;
             print STDOUT "SKU " . $sku->{sku} . " not found in DB, inserting\n" if $options{debug} > 0 ;
             if( not $i_stmt->execute( $sku->{sku}, $sku->{vendor_name}, $sku->{title}, $sku->{description} ) )
             {
-                print STDERR "Failed to insert " . $sku->{sku} . ", with error: " . $DBI::errstr . "\n" ;
+                print STDERR "Failed to insert " . $sku->{sku} . ", with error: " . $i_stmt->errstr . "\n" ;
+            }
+        }
+
+        if($sku->{has_pack_info})
+        {
+            my $pack_s_stmt = $dbh->prepare(${\SKU_CASE_PACKS_SELECT_STATEMENT}) ;
+            $pack_s_stmt->execute($sku->{sku}) or die "'" . $pack_s_stmt->errstr . "'\n" ;
+
+            my $localSCP ;
+            if($pack_s_stmt->rows > 0)
+            {
+                $localSCP = $pack_s_stmt->fetchrow_hashref() ;
+                if( $localSCP->{vendor_sku} ne $sku->{vendor_sku} or
+                    $localSCP->{pack_size}  ne $sku->{pack_size} )
+                {
+                    my $pack_u_stmt = $dbh->prepare(${\SKU_CASE_PACKS_UPDATE_STATEMENT}) ;
+                    if( not $pack_u_stmt->execute($sku->{vendor_sku},$sku->{pack_size},$sku->{sku}) )
+                    {
+                        print STDERR "Failed to update sku_case_packs DBI Error: \"" . $pack_u_stmt->errstr . "\"\n" ;
+                    }
+                }
+            }
+            else
+            {
+                #
+                # not found, insert it
+                my $pack_i_stmt = $dbh->prepare(${\SKU_CASE_PACKS_INSERT_STATEMENT}) ;
+                if( not ($pack_i_stmt->execute($sku->{sku},
+                                               $sku->{vendor_sku},
+                                               $sku->{pack_size})) )
+                {
+                    print STDERR "Failed to insert sku_case_pack DBI Error: \"" . $pack_i_stmt->errstr . "\"\n" ;
+                }
             }
         }
     }

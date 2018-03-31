@@ -8,21 +8,13 @@ DROP TRIGGER IF EXISTS realtime_inventory_update_trigger ;
 DROP TRIGGER IF EXISTS realtime_inventory_create_trigger ;
 DROP TABLE IF EXISTS realtime_inventory ;
 
-DROP TRIGGER IF EXISTS onhand_inventory_report_update_trigger ;
-DROP TRIGGER IF EXISTS onhand_inventory_report_create_trigger ;
-DROP TABLE IF EXISTS onhand_inventory_reports ;
-
-DROP TRIGGER IF EXISTS onhand_inventory_report_update_trigger ;
-DROP TRIGGER IF EXISTS onhand_inventory_report_create_trigger ;
-DROP TABLE IF EXISTS onhand_inventory_reports ;
-
-DROP TRIGGER IF EXISTS inventory_condition_update_trigger ;
-DROP TRIGGER IF EXISTS inventory_condition_create_trigger ;
-DROP TABLE IF EXISTS inventory_conditions ;
-
 DROP TRIGGER IF EXISTS sku_cost_update_trigger ;
 DROP TRIGGER IF EXISTS sku_cost_create_trigger ;
 DROP TABLE IF EXISTS sku_costs ;
+
+DROP TRIGGER IF EXISTS sku_case_packs_update_trigger ;
+DROP TRIGGER IF EXISTS sku_case_packs_create_trigger ;
+DROP TABLE IF EXISTS sku_case_packs ;
 
 DROP TRIGGER IF EXISTS sku_update_trigger ;
 DROP TRIGGER IF EXISTS sku_create_trigger ;

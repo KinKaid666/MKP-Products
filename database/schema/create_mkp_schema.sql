@@ -111,7 +111,7 @@ CREATE TABLE if not exists skus
    ,vendor_name     VARCHAR(50)       NULL                                                       -- name of the vendor we buy the sku from
    ,title           VARCHAR(150)      NULL                                                       -- title of the listing
    ,description     VARCHAR(500)      NULL                                                       -- details of the SKU
-   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
+   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row
    ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
    ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
    ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
@@ -137,6 +137,40 @@ END //
 DELIMITER ;
 
 --
+-- SKU Case Packs
+CREATE TABLE if not exists sku_case_packs
+(
+    sku             VARCHAR(20)   NOT NULL                                                       -- our internal sku id
+   ,vendor_sku      VARCHAR(20)   NOT NULL                                                       -- vendor SKU
+   ,pack_size       INT UNSIGNED  NOT NULL                                                       -- size of the pack we sell in
+   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row
+   ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
+   ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
+   ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
+   ,UNIQUE(sku,vendor_sku,pack_size)
+   ,FOREIGN KEY (sku) REFERENCES skus(sku)
+   ,PRIMARY KEY (sku,vendor_sku,pack_size)
+) ;
+
+DESCRIBE sku_case_packs ;
+--
+-- Create trigger to get the use who created or udpated
+DELIMITER //
+CREATE TRIGGER sku_case_packs_create_trigger BEFORE INSERT on sku_case_packs
+FOR EACH ROW
+BEGIN
+    set NEW.creation_user = USER() ;
+    set NEW.latest_user = USER() ;
+END //
+CREATE TRIGGER sku_case_packs_update_trigger BEFORE UPDATE on sku_case_packs
+FOR EACH ROW
+BEGIN
+    set NEW.latest_user = USER() ;
+END //
+DELIMITER ;
+
+
+--
 -- SKU Costs Domain data
 CREATE TABLE if not exists sku_costs
 (
@@ -144,7 +178,7 @@ CREATE TABLE if not exists sku_costs
    ,cost            DECIMAL(13,2) NOT NULL                                                       -- current price
    ,start_date      DATE          NOT NULL                                                       -- the starting date when the cost is valid
    ,end_date        DATE              NULL                                                       -- the last date the cost is valid
-   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
+   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row
    ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
    ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
    ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
@@ -164,37 +198,6 @@ BEGIN
     set NEW.latest_user = USER() ;
 END //
 CREATE TRIGGER sku_cost_update_trigger BEFORE UPDATE on sku_costs
-FOR EACH ROW
-BEGIN
-    set NEW.latest_user = USER() ;
-END //
-DELIMITER ;
-
---
--- SKU Costs Domain data
-CREATE TABLE if not exists inventory_conditions
-(
-    condition_name VARCHAR(30)   NOT NULL                                                       -- Inventory Condition
-   ,description    VARCHAR(30)   NOT NULL                                                       -- Inventory Condition
-   ,latest_user    VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
-   ,latest_update  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
-   ,creation_user  VARCHAR(30)       NULL                                                       -- User that created the row
-   ,creation_date  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
-   ,PRIMARY KEY (condition_name)
-) ;
-
-desc inventory_conditions ;
-
---
--- Create trigger to get the use who created or udpated
-DELIMITER //
-CREATE TRIGGER inventory_condition_create_trigger BEFORE INSERT on inventory_conditions
-FOR EACH ROW
-BEGIN
-    set NEW.creation_user = USER() ;
-    set NEW.latest_user = USER() ;
-END //
-CREATE TRIGGER inventory_condition_update_trigger BEFORE UPDATE on inventory_conditions
 FOR EACH ROW
 BEGIN
     set NEW.latest_user = USER() ;
@@ -282,7 +285,7 @@ CREATE TABLE if not exists active_sources
    ,sku_source_id   VARCHAR(50)       NULL                                                       -- unique identifier for this SKU on this source
    ,source_name     VARCHAR(50)       NULL                                                       -- the website in question
    ,active          BOOLEAN       NOT NULL                                                       -- is the sku active at this source
-   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row                                                       --
+   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row
    ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
    ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
    ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created

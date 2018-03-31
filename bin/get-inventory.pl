@@ -59,6 +59,39 @@ use constant UPDATE_ONHAND_INVENTORY => qq(
      where sku = ?
 ) ;
 
+# mysql> desc active_sources ;
+# +---------------+-------------+------+-----+-------------------+-----------------------------+
+# | Field         | Type        | Null | Key | Default           | Extra                       |
+# +---------------+-------------+------+-----+-------------------+-----------------------------+
+# | sku           | varchar(20) | NO   | PRI | NULL              |                             |
+# | sku_source_id | varchar(50) | YES  |     | NULL              |                             |
+# | source_name   | varchar(50) | YES  | MUL | NULL              |                             |
+# | active        | tinyint(1)  | NO   |     | NULL              |                             |
+# | latest_user   | varchar(30) | YES  |     | NULL              |                             |
+# | latest_update | timestamp   | NO   |     | CURRENT_TIMESTAMP | on update CURRENT_TIMESTAMP |
+# | creation_user | varchar(30) | YES  |     | NULL              |                             |
+# | creation_date | timestamp   | NO   |     | CURRENT_TIMESTAMP |                             |
+# +---------------+-------------+------+-----+-------------------+-----------------------------+
+use constant SELECT_ACTIVE_SOURCES => qq(
+    select sku
+           , sku_source_id
+           , source_name
+           , active
+      from active_sources
+     where sku = ?
+) ;
+use constant INSERT_ACTIVE_SOURCES => qq(
+    insert into active_sources (sku, sku_source_id, source_name, active) values (?, ?, ?, ?)
+) ;
+use constant UPDATE_ACTIVE_SOURCES => qq(
+    update active_sources
+       set sku_source_id = ?
+           , source_name = ?
+           , active = ?
+     where sku =?
+) ;
+
+
 #
 # Parse options and set defaults
 my %options ;
@@ -207,6 +240,46 @@ foreach my $sku (keys %{$inventoryItems})
                                 $inventoryItems->{$sku}->{EarliestAvailability}->{DateTime}) )
         {
             print STDERR "Failed to insert realtime_inventroy for sku $sku, DBI Error: \"" . $i_sth->errstr . "\"\n"
+        }
+    }
+
+    #
+    # Update active sources
+    my $as_sth = $dbh->prepare(${\SELECT_ACTIVE_SOURCES}) ;
+    $as_sth->execute($sku) or die "'" . $as_sth->errstr . "'\n" ;
+    if( $as_sth->rows > 0 )
+    {
+        #
+        # Found, update the active source
+        my $localAC = $as_sth->fetchrow_hashref() ;
+        print "Found $sku active_source; updating as necessary.\n" if $options{verbose} ;
+
+        #
+        # If the active_source has changed, update it
+        if( not ($localAC->{source_name}   eq "www.amazon.com" and
+                 $localAC->{sku_source_id} eq $inventoryItems->{$sku}->{ASIN}) )
+        {
+            my $u_sth = $dbh->prepare(${\UPDATE_ACTIVE_SOURCES}) ;
+            if( not $u_sth->execute($inventoryItems->{$sku}->{ASIN},
+                                    "www.amazon.com",
+                                    1,
+                                    $sku) )
+            {
+                print STDERR "Failed to update active_sources for sku $sku, DBI Error: \"" . $u_sth->errstr . "\"\n" ;
+            }
+        }
+    }
+    else
+    {
+        #
+        # Not found, insert the active source
+        my $i_sth = $dbh->prepare(${\INSERT_ACTIVE_SOURCES}) ;
+        if( not $i_sth->execute($inventoryItems->{$sku}->{SellerSKU},
+                                $inventoryItems->{$sku}->{ASIN},
+                                "www.amazon.com",
+                                1) )
+        {
+            print STDERR "Failed to insert active_sources for sku $sku, DBI Error: \"" . $i_sth->errstr . "\"\n"
         }
     }
 }
