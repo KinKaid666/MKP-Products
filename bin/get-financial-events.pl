@@ -226,7 +226,7 @@ if( not ((defined $options{start} and defined $options{end}     )  or
 {
     #
     # default to today
-    $options{start} = UnixDate(DateTime->today()->set_time_zone($timezone), "%Y-%m-%d") if not defined $options{start} ;
+    $options{start} = UnixDate(DateTime->now()->set_time_zone($timezone), "%Y-%m-%d") if not defined $options{start} ;
 }
 
 if( defined $options{duration} and
