@@ -67,7 +67,8 @@ if( not (defined $options{start} and defined $options{end} ) )
 {
     #
     # default to today
-    $options{start} = UnixDate(DateTime->today()->set_time_zone($timezone), "%Y-%m-%d") if not defined $options{start} ;
+    #$options{start} = UnixDate(DateTime->today()->set_time_zone($timezone), "%Y-%m-%d") if not defined $options{start} ;
+    $options{start} = UnixDate(DateTime->today(), "%Y-%m-%d") if not defined $options{start} ;
 }
 
 if( (defined $options{start} and not $options{start} =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) or
@@ -265,7 +266,7 @@ if( 0 )
     # Load items
     foreach my $item (@{$orderItems->{$o->{AmazonOrderId}}})
     {
-        $skuCount += $item->{QuantityOrdered} if $o->{OrderStatus} ne "Canceled" ;
+        $skuCount += $item->{QuantityOrdered} ;
         print "Inserting/Updating Amazon Order Item $item->{SellerSKU}\n" if $options{verbose} ;
 if( 0 )
 {
