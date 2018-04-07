@@ -354,7 +354,7 @@ while(1)
 
                     #
                     # Only tag that doesn't follow the schema
-                    $name = "ShipmentEvent" if($list eq "RefundEventList") ;
+                    $name = "ShipmentEvent" if($list eq "RefundEventList" or $list eq "ChargebackEventList") ;
 
                     #
                     # Merge arrays
@@ -852,6 +852,146 @@ my $financialExpenseEvents ;
                     $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Description}  = $adj->{AdjustmentType};
                     $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Value}        = $adj->{AdjustmentAmount}->{CurrencyAmount} ;
                     $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{CurrencyCode} = $cc ;
+                }
+            }
+        }
+
+        #
+        # Chargeback Event List
+        if( exists $feg->{FinancialEvents}->{ChargebackEventList}->{ShipmentEvent} )
+        {
+            foreach my $shipment (@{&force_array($feg->{FinancialEvents}->{ChargebackEventList}->{ShipmentEvent})})
+            {
+                $shipment->{PostedDate} = &convert_amazon_datetime($shipment->{PostedDate}) if defined $shipment->{PostedDate} ;
+
+                print "\tProcessing ChargebackEvent $feg_id : $shipment->{AmazonOrderId}\n" if $options{verbose} > 1 ;
+                print "\t\tAmazonOrderId   = " . &nvl($shipment->{AmazonOrderId})   . "\n" if $options{verbose} > 2 ;
+                print "\t\tSellerOrderId   = " . &nvl($shipment->{SellerOrderId})   . "\n" if $options{verbose} > 2 ;
+                print "\t\tPostedDate      = " . &nvl($shipment->{PostedDate})      . "\n" if $options{verbose} > 2 ;
+                print "\t\tMarketplaceName = " . &nvl($shipment->{MarketplaceName}) . "\n" if $options{verbose} > 2 ;
+                if( exists $shipment->{ShipmentItemAdjustmentList} and exists $shipment->{ShipmentItemAdjustmentList}->{ShipmentItem} )
+                {
+
+                    foreach my $item (@{&force_array($shipment->{ShipmentItemAdjustmentList}->{ShipmentItem})})
+                    {
+                        my $products_charges            = 0 ;
+                        my $products_charges_tax        = 0 ;
+                        my $shipping_charges            = 0 ;
+                        my $shipping_charges_tax        = 0 ;
+                        my $giftwrap_charges            = 0 ;
+                        my $giftwrap_charges_tax        = 0 ;
+                        my $marketplace_facilitator_tax = 0 ;
+                        my $promotional_rebates         = 0 ;
+                        my $selling_fees                = 0 ;
+                        my $fba_fees                    = 0 ;
+                        my $other_fees                  = 0 ;
+                        my $total                       = 0 ;
+                        print "\t\t\tOrderItemId     = " . &nvl($item->{OrderAdjustmentItemId}) . "\n" if $options{verbose} > 2 ;
+                        print "\t\t\tQuantityShipped = " . &nvl($item->{QuantityShipped})       . "\n" if $options{verbose} > 2 ;
+                        print "\t\t\tSellerSKU       = " . &nvl($item->{SellerSKU})             . "\n" if $options{verbose} > 2 ;
+                        if( exists $item->{ItemFeeAdjustmentList} and exists $item->{ItemFeeAdjustmentList}->{FeeComponent} )
+                        {
+                            print "\t\t\t\tFound Fees\n" if $options{verbose} > 2 ;
+                            foreach my $fee (@{&force_array($item->{ItemFeeAdjustmentList}->{FeeComponent})})
+                            {
+                                print "\t\t\t\t\t" . &nvl($fee->{FeeType}) . " = " . &nvl($fee->{FeeAmount}->{CurrencyAmount}) . " " . &nvl($fee->{FeeAmount}->{CurrencyCode}) . "\n" if $options{verbose} > 2 ;
+
+                                $cc = &die_or_set_currency($cc,$fee->{FeeAmount}->{CurrencyCode}) ;
+                                if    ( $fee->{FeeType} =~ m/^FBA.*$/              ) { $fba_fees     += $fee->{FeeAmount}->{CurrencyAmount} ; }
+                                elsif ( $fee->{FeeType} =~ m/^ShippingChargeback$/ ) { $fba_fees     += $fee->{FeeAmount}->{CurrencyAmount} ; }
+                                elsif ( $fee->{FeeType} =~ m/^Commission$/         ) { $selling_fees += $fee->{FeeAmount}->{CurrencyAmount} ; }
+                                elsif ( $fee->{FeeType} =~ m/^RefundCommission$/   ) { $selling_fees += $fee->{FeeAmount}->{CurrencyAmount} ; }
+                                else                                                 { $other_fees   += $fee->{FeeAmount}->{CurrencyAmount} ; }
+                            }
+                        }
+
+                        if( exists $item->{ItemChargeAdjustmentList} and exists $item->{ItemChargeAdjustmentList}->{ChargeComponent} )
+                        {
+                            print "\t\t\t\tFound Charges\n" if $options{verbose} > 2 ;
+                            foreach my $fee (@{&force_array($item->{ItemChargeAdjustmentList}->{ChargeComponent})})
+                            {
+                                print "\t\t\t\t\t" . &nvl($fee->{ChargeType}) .  " = " . &nvl($fee->{ChargeAmount}->{CurrencyAmount}) . " " . &nvl($fee->{ChargeAmount}->{CurrencyCode}) . "\n" if $options{verbose} > 2 ;
+                                $cc = &die_or_set_currency($cc,$fee->{ChargeAmount}->{CurrencyCode}) ;
+                                if    ( $fee->{ChargeType} =~ m/^Principal$/      ) { $products_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ; }
+                                elsif ( $fee->{ChargeType} =~ m/^Tax$/            ) { $products_charges_tax += $fee->{ChargeAmount}->{CurrencyAmount} ; }
+                                elsif ( $fee->{ChargeType} =~ m/^ReturnShipping$/ ) { $shipping_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ; }
+                                elsif ( $fee->{ChargeType} =~ m/^ShippingCharge$/ ) { $shipping_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ; }
+                                elsif ( $fee->{ChargeType} =~ m/^ShippingTax$/    ) { $shipping_charges_tax += $fee->{ChargeAmount}->{CurrencyAmount} ; }
+                                elsif ( $fee->{ChargeType} =~ m/^GiftWrap$/       ) { $giftwrap_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ; }
+                                elsif ( $fee->{ChargeType} =~ m/^GiftWrapTax$/    ) { $giftwrap_charges_tax += $fee->{ChargeAmount}->{CurrencyAmount} ; }
+                                else                                                { print STDERR "unknown fee . $fee->{ChargeType}\n" if $options{verbose} ;  $products_charges     += $fee->{ChargeAmount}->{CurrencyAmount} ;}
+                            }
+                        }
+
+                        if( exists $item->{PromotionAdjustmentList} and exists $item->{PromotionAdjustmentList}->{Promotion} )
+                        {
+                            print "\t\t\t\tFound Promotions\n" if $options{verbose} > 2 ;
+                            foreach my $fee (@{&force_array($item->{PromotionAdjustmentList}->{Promotion})})
+                            {
+                                print "\t\t\t\t\t" . &nvl($fee->{PromotionId}) . " | " . &nvl($fee->{PromotionType}) . " = " . &nvl($fee->{PromotionAmount}->{CurrencyAmount}) . " " . &nvl($fee->{PromotionAmount}->{CurrencyCode}) . "\n" if $options{verbose} > 2 ;
+                                $cc = &die_or_set_currency($cc,$fee->{PromotionAmount}->{CurrencyCode}) ;
+                                $promotional_rebates += $fee->{PromotionAmount}->{CurrencyAmount} ;
+                            }
+                        }
+                        $total = $products_charges + $products_charges_tax + $shipping_charges + $shipping_charges_tax + $giftwrap_charges + $giftwrap_charges_tax + $marketplace_facilitator_tax + $promotional_rebates + $selling_fees + $fba_fees + $other_fees;
+
+                        print "\t\t\t\t\$products_charges            = $products_charges\n"            if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$products_charges_tax        = $products_charges_tax\n"        if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$shipping_charges            = $shipping_charges\n"            if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$shipping_charges_tax        = $shipping_charges_tax\n"        if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$giftwrap_charges            = $giftwrap_charges\n"            if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$giftwrap_charges_tax        = $giftwrap_charges_tax\n"        if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$marketplace_facilitator_tax = $marketplace_facilitator_tax\n" if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$promotional_rebates         = $promotional_rebates\n"         if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$selling_fees                = $selling_fees\n"                if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$fba_fees                    = $fba_fees\n"                    if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$other_fees                  = $other_fees\n"                  if $options{verbose} > 2 ;
+                        print "\t\t\t\t\$cc                          = $cc\n"                          if $options{verbose} > 2 ;
+                        print "\t\t\tTotal = $total\n" if $options{verbose} > 1 ;
+
+                        #
+                        # Add each event to the compressed data structure
+                        if( exists $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}} )
+                        {
+                            # Add
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{QuantityShipped}           += $item->{QuantityShipped}     ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{ProductCharges}            += $products_charges            ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{ProductChargesTax}         += $products_charges_tax        ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{ShippingCharges}           += $shipping_charges            ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{ShippingChargesTax}        += $shipping_charges_tax        ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{GiftwrapCharges}           += $giftwrap_charges            ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{GiftwrapChargesTax}        += $giftwrap_charges_tax        ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{MarketplaceFacilitatorTax} += $marketplace_facilitator_tax ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{PromotionalRebates}        += $promotional_rebates         ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{SellingFees}               += $selling_fees                ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{FBAFees}                   += $fba_fees                    ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{OtherFees}                 += $other_fees                  ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{Total}                     += $total                       ;
+                        }
+                        else
+                        {
+                            # Insert
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{Type}                      = "Refund"                     ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{PostDate}                  = $shipment->{PostedDate}      ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{AmazonOrderId}             = $shipment->{AmazonOrderId}   ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{MarketplaceName}           = $shipment->{MarketplaceName} ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{SellerSKU}                 = $item->{SellerSKU}           ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{QuantityShipped}           = $item->{QuantityShipped}     ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{ProductCharges}            = $products_charges            ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{ProductChargesTax}         = $products_charges_tax        ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{ShippingCharges}           = $shipping_charges            ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{ShippingChargesTax}        = $shipping_charges_tax        ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{GiftwrapCharges}           = $giftwrap_charges            ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{GiftwrapChargesTax}        = $giftwrap_charges_tax        ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{MarketplaceFacilitatorTax} = $marketplace_facilitator_tax ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{PromotionalRebates}        = $promotional_rebates         ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{SellingFees}               = $selling_fees                ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{FBAFees}                   = $fba_fees                    ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{OtherFees}                 = $other_fees                  ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{Total}                     = $total                       ;
+                            $financialShipmentEvents->{$feg_id}->{$shipment->{AmazonOrderId}}->{Refund}->{$item->{SellerSKU}}->{CurrencyCode}              = $cc                          ;
+                        }
+                    }
                 }
             }
         }
