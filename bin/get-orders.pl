@@ -62,15 +62,6 @@ $options{verbose}  = 0 ; # default
     "usage|help|?"   => sub { &usage_and_die(0) },
 ) || &usage_and_die(1) ;
 
-# pure verbose; remove before prod
-if( not (defined $options{start} and defined $options{end} ) )
-{
-    #
-    # default to today
-    #$options{start} = UnixDate(DateTime->today()->set_time_zone($timezone), "%Y-%m-%d") if not defined $options{start} ;
-    $options{start} = UnixDate(DateTime->today(), "%Y-%m-%d") if not defined $options{start} ;
-}
-
 if( (defined $options{start} and not $options{start} =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) or
     (defined $options{end}   and not $options{end}   =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ ))
 {
@@ -164,13 +155,13 @@ while(1)
         {
             push @orders, $order ;
 
-            print "AmazonOrderId  = $order->{AmazonOrderId}\n" if $options{verbose} ;
-            print "    PurchaseDate   = $order->{PurchaseDate}\n" if $options{verbose} ;
-            print "    LatestShipDate = $order->{LatestShipDate}\n" if $options{verbose} ;
-            print "    OrderType      = $order->{OrderType}\n" if $options{verbose} ;
-            print "    OrderTotal     = " . &nvl($order->{OrderTotal}->{Amount}) . "\n" if $options{verbose} ;
-            print "    OrderStatus    = $order->{OrderStatus}\n" if $options{verbose} ;
-            print "    LastUpdateDate = $order->{LastUpdateDate}\n" if $options{verbose} ;
+            print "AmazonOrderId = $order->{AmazonOrderId}\n" if $options{verbose} ;
+            print "    PurchaseDate                 = " . &convert_amazon_datetime($order->{PurchaseDate}) . " ET\n" if $options{verbose} ;
+            print "    LatestShipDate               = " . &convert_amazon_datetime($order->{LatestShipDate}) . " ET\n" if $options{verbose} ;
+            print "    OrderType                    = $order->{OrderType}\n" if $options{verbose} ;
+            print "    OrderTotal                   = " . &nvl($order->{OrderTotal}->{Amount}) . "\n" if $options{verbose} ;
+            print "    OrderStatus                  = $order->{OrderStatus}\n" if $options{verbose} ;
+            print "    LastUpdateDate               = $order->{LastUpdateDate}\n" if $options{verbose} ;
             print "    ShipmentServiceLevelCategory = $order->{ShipmentServiceLevelCategory}\n" if $options{verbose} ;
 
             my $oReq = $mws->ListOrderItems(AmazonOrderId => $order->{AmazonOrderId}) ;
@@ -182,9 +173,9 @@ while(1)
                 {
                     foreach my $item (@{&force_array($oReq->{OrderItems}->{OrderItem})})
                     {
-                        print "    SKU   = $item->{SellerSKU}\n" if $options{verbose} > 1 ;
-                        print "        ASIN  = $item->{ASIN}\n" if $options{verbose} > 1 ;
-                        print "        Title = $item->{Title}\n" if $options{verbose} > 1 ;
+                        print "    SKU = $item->{SellerSKU}\n" if $options{verbose} > 1 ;
+                        print "        ASIN              = $item->{ASIN}\n" if $options{verbose} > 1 ;
+                        print "        Title             = $item->{Title}\n" if $options{verbose} > 1 ;
                         print "        QuantityOrdered   = " . &nvl($item->{QuantityOrdered})             . "\n" if $options{verbose} > 1 ;
                         print "        QuantityShipped   = " . &nvl($item->{QuantityShipped})             . "\n" if $options{verbose} > 1 ;
                         print "        OrderItemId       = " . &nvl($item->{OrderItemId})                 . "\n" if $options{verbose} > 1 ;
@@ -215,14 +206,14 @@ my $orderCount = 0 ;
 my $skuCount = 0 ;
 foreach my $o (@orders)
 {
-    my $localOrder ;
     $orderCount++ ;
 
-if( 0 )
-{
     #
     # Insert or Update order
     print "Inserting/Updating Order $o->{AmazonOrderId}\n" if $options{verbose} ;
+    my $localOrder ;
+if( 0 )
+{
     my $o_sth = $dbh->prepare(${\SELECT_ORDERS}) ;
     $o_sth->execute($o->{AmazonOrderId}) or die "'" . $o_sth->errstr . "'\n" ;
     if( $o_sth->rows > 0 )
@@ -267,7 +258,7 @@ if( 0 )
     foreach my $item (@{$orderItems->{$o->{AmazonOrderId}}})
     {
         $skuCount += $item->{QuantityOrdered} ;
-        print "Inserting/Updating Amazon Order Item $item->{SellerSKU}\n" if $options{verbose} ;
+        print "    Inserting/Updating Amazon Order Item $item->{SellerSKU} [" . (defined $item->{QuantityOrdered} ? $item->{QuantityOrdered} : 0) . "]\n" if $options{verbose} ;
 if( 0 )
 {
         my $o_sth = $dbh->prepare(${\SELECT_ORDER_ITEMS}) ;
