@@ -24,9 +24,3 @@ INSERT INTO vendors ( vendor_name, description ) VALUES
     ( 'Foremost'           ,'' ),
     ( 'Unknown'            ,'' ) ;
 
---
--- insert inventory_conditions
-INSERT INTO inventory_conditions ( condition_name, description ) VALUES
-    ('SELLABLE', 'Available to sell'),
-    ('UNSELLABLE', 'Not currently for sale') ;
-
