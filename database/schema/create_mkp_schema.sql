@@ -18,18 +18,18 @@ CREATE TABLE IF NOT EXISTS order_sources
    ,PRIMARY KEY(source_name)
 ) ;
 
-DESCRIBE order_channels ;
+DESCRIBE order_sources ;
 
 --
 -- Create trigger to get the user who created or udpated
 DELIMITER //
-CREATE TRIGGER order_channel_create_trigger BEFORE INSERT on order_channels
+CREATE TRIGGER order_channel_create_trigger BEFORE INSERT on order_sources
 FOR EACH ROW
 BEGIN
     set NEW.creation_user = USER() ;
     set NEW.latest_user = USER() ;
 END //
-CREATE TRIGGER order_channel_update_trigger BEFORE UPDATE on order_channels
+CREATE TRIGGER order_channel_update_trigger BEFORE UPDATE on order_sources
 FOR EACH ROW
 BEGIN
     set NEW.latest_user = USER() ;
@@ -240,43 +240,6 @@ BEGIN
 END //
 DELIMITER ;
 
---
--- inventory reports
-CREATE TABLE if not exists onhand_inventory_reports
-(
-    id              INT UNSIGNED  NOT NULL AUTO_INCREMENT                                        -- primary key
-   ,sku             VARCHAR(20)   NOT NULL                                                       -- our internal sku id
-   ,report_date     DATE          NOT NULL                                                       -- date report was run
-   ,source_name     VARCHAR(50)   NOT NULL                                                       -- Channel where inventroy is
-   ,condition_name  VARCHAR(30)   NOT NULL                                                       -- Current condition of inventory
-   ,quantity        INT UNSIGNED  NOT NULL                                                       -- Number of units
-   ,latest_user     VARCHAR(30)       NULL                                                       -- Latest user to update row
-   ,latest_update   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -- Latest time row updated
-   ,creation_user   VARCHAR(30)       NULL                                                       -- User that created the row
-   ,creation_date   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP                             -- Time row created
-   ,FOREIGN KEY (sku)            REFERENCES skus (sku)
-   ,FOREIGN KEY (source_name)    REFERENCES order_sources (source_name)
-   ,FOREIGN KEY (condition_name) REFERENCES inventory_conditions (condition_name)
-   ,PRIMARY KEY (id)
-) ;
-
-desc onhand_inventory_reports ;
-
---
--- Create trigger to get the use who created or udpated
-DELIMITER //
-CREATE TRIGGER onhand_inventory_report_create_trigger BEFORE INSERT on onhand_inventory_reports
-FOR EACH ROW
-BEGIN
-    set NEW.creation_user = USER() ;
-    set NEW.latest_user = USER() ;
-END //
-CREATE TRIGGER onhand_inventory_report_update_trigger BEFORE UPDATE on onhand_inventory_reports
-FOR EACH ROW
-BEGIN
-    set NEW.latest_user = USER() ;
-END //
-DELIMITER ;
 --
 -- SKU Domain data
 CREATE TABLE if not exists active_sources
