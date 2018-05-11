@@ -173,7 +173,7 @@ while(1)
 
     if( exists $req->{ShipmentData}->{member} )
     {
-        foreach my $shipment (@{$req->{ShipmentData}->{member}})
+        foreach my $shipment (@{&force_array($req->{ShipmentData}->{member})})
         {
             print "ShipmentId = $shipment->{ShipmentId} \n" if $options{verbose} > 0 ;
             print "\tShipmentStatus = $shipment->{ShipmentStatus}\n" if $options{verbose} > 1 ;
