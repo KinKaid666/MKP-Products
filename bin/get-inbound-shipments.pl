@@ -3,7 +3,8 @@
 use strict;
 
 use Amazon::MWS::Client ;
-use DateTime;
+use DateTime ;
+use Date::Manip ;
 use Data::Dumper ;
 use Getopt::Long ;
 use DBI ;
@@ -144,8 +145,9 @@ my $mws ;
         $value =~ s/^"(.*)"$/$1/g ;
         $credentials->{$key} = $value ;
     }
-    #$credentials->{logfile} = "/var/tmp/mws_log.txt" ;
-    #$credentials->{debug} = 1 ;
+    my $ldate = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y%m%d_%H%M%S") ;
+    $credentials->{logfile} = "/var/tmp/mws_inbound-log.$ldate.txt" ;
+    $credentials->{debug} = 1 ;
     $mws = Amazon::MWS::Client->new(%$credentials) ;
 }
 
@@ -298,7 +300,7 @@ foreach my $s (@shipments)
                                      $item->{QuantityInCase},
                                      $item->{QuantityReceived}) )
             {
-                print STDERR "Failed to insert inbound_shipment_items DBI Error: \"" . $i_sth->errstr . "\"\n" ;
+                print STDERR "Failed to insert inbound_shipment_items $item->{SellerSKU} DBI Error: \"" . $i_sth->errstr . "\"\n" ;
             }
         }
     }
