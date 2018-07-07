@@ -1,19 +1,19 @@
 select 'Orders without costs' ;
 select a.source_order_id
        , a.sku
-       , a.order_datetime
+       , a.posted_dt
        , a.cost
   from (
         select so.source_order_id
                , so.sku
-               , so.order_datetime
+               , so.posted_dt
                , sc.cost
-          from sku_orders so
+          from financial_shipment_events so
           left outer join sku_costs sc
             on so.sku = sc.sku
-           and sc.start_date < so.order_datetime
+           and sc.start_date < so.posted_dt
            and (sc.end_date is null or
-                sc.end_date > so.order_datetime)
+                sc.end_date > so.posted_dt)
        ) a
  where a.cost is null
 ;
@@ -23,14 +23,14 @@ select distinct a.sku
   from (
         select so.source_order_id
                , so.sku
-               , so.order_datetime
+               , so.posted_dt
                , sc.cost
-          from sku_orders so
+          from financial_shipment_events so
           left outer join sku_costs sc
             on so.sku = sc.sku
-           and sc.start_date < so.order_datetime
+           and sc.start_date < so.posted_dt
            and (sc.end_date is null or
-                sc.end_date > so.order_datetime)
+                sc.end_date > so.posted_dt)
        ) a
  where a.cost is null
  order by a.sku
@@ -38,22 +38,17 @@ select distinct a.sku
 
 select 'Currenty inventory without costs' ;
 select distinct a.sku
-       ,a.condition_name
-       ,a.quantity
+       ,a.quantity_total
   from (
-        select ohi.sku
-               ,ohi.report_date
-               ,ohi.source_name
-               ,ohi.condition_name
-               ,ohi.quantity
+        select ri.sku
+               ,ri.quantity_total
                ,sc.cost
-          from onhand_inventory_reports ohi
+          from realtime_inventory ri
           left outer join sku_costs sc
-            on sc.sku = ohi.sku
-         where report_date = ( select max(report_date) from onhand_inventory_reports )
+            on sc.sku = ri.sku
        ) a
  where a.cost is null
-   and a.quantity > 0
+   and a.quantity_total > 0
  order by a.sku
 ;
 
