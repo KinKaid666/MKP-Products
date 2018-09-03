@@ -108,7 +108,7 @@ sub format_decimal
     my $wholeText = &format_integer($whole) ;
     my $partText = "" ;
 
-    $partText .= ("0" x ($places - length($part))) if($part < 10 and $part >= 0) ;
+    $partText .= ("0" x ($places - length($part))) if($part < 10 and $part >= 0 and ($places - length($part)) > 0) ;
     $partText .= $part ;
 
     my $decimal = "" ;
