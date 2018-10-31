@@ -213,9 +213,9 @@ foreach my $sku (keys %{$inventoryItems})
 
         #
         # If the inventory has changed, update it
-        if( not ($localSKU->{source_name}      eq "www.amazon.com"                                           and
-                 $localSKU->{quantity_instock} eq $inventoryItems->{$sku}->{InStockSupplyQuantity}            and
-                 $localSKU->{quantity_total}   eq $inventoryItems->{$sku}->{TotalSupplyQuantity}              and
+        if( not ($localSKU->{source_name}      eq "www.amazon.com"                                 and
+                 $localSKU->{quantity_instock} eq $inventoryItems->{$sku}->{InStockSupplyQuantity} and
+                 $localSKU->{quantity_total}   eq $inventoryItems->{$sku}->{TotalSupplyQuantity}   and
                  $localSKU->{instock_date}     eq $inventoryItems->{$sku}->{EarliestAvailability}->{DateTime}) )
         {
             my $u_sth = $dbh->prepare(${\UPDATE_ONHAND_INVENTORY}) ;
@@ -232,6 +232,10 @@ foreach my $sku (keys %{$inventoryItems})
     }
     else
     {
+        #
+        # Skip new SKUs with no inventory en route or on hand
+        next if $inventoryItems->{$sku}->{InStockSupplyQuantity} == 0 and $inventoryItems->{$sku}->{TotalSupplyQuantity} == 0 ;
+
         my $i_sth = $dbh->prepare(${\INSERT_ONHAND_INVENTORY}) ;
         if( not $i_sth->execute($inventoryItems->{$sku}->{SellerSKU},
                                 "www.amazon.com",
@@ -271,6 +275,10 @@ foreach my $sku (keys %{$inventoryItems})
     }
     else
     {
+        #
+        # Skip new SKUs with no inventory en route or on hand
+        next if $inventoryItems->{$sku}->{InStockSupplyQuantity} == 0 and $inventoryItems->{$sku}->{TotalSupplyQuantity} == 0 ;
+
         #
         # Not found, insert the active source
         my $i_sth = $dbh->prepare(${\INSERT_ACTIVE_SOURCES}) ;
