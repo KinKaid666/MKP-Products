@@ -19,9 +19,9 @@
 # m h  dom mon dow   command
 
 # real-time
-  * * * * * /mkp/src/bin/get-inventory.pl
-  * * * * * /mkp/src/bin/get-financial-events.pl
-*/6 * * * * /mkp/src/bin/get-inbound-shipments.pl
+*/15 * * * * /mkp/src/bin/get-inventory.pl
+*/5  * * * * /mkp/src/bin/get-financial-events.pl
+*/20 * * * * /mkp/src/bin/get-inbound-shipments.pl
 
 # Flush once a day
 0 1 * * * /mkp/src/bin/get-inbound-shipments.pl --status=CLOSED --status=DELETED
