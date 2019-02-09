@@ -1207,7 +1207,7 @@ die if $options{dumper} ;
                                               $financialShipmentEvents->{$feg_id}->{$order}->{$type}->{$sku}->{Total}                     ,
                                               $financialShipmentEvents->{$feg_id}->{$order}->{$type}->{$sku}->{CurrencyCode}              ) )
                     {
-                        print STDERR "Failed to insert FSE DBI Error: \"" . $ii_sth->errstr . "\".\n" ;
+                        print STDERR "Failed to insert $sku FSE DBI Error: \"" . $ii_sth->errstr . "\".\n" ;
                     }
                 }
             }
