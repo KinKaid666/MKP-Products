@@ -29,7 +29,7 @@ my %options ;
 $options{username} = 'mkp_loader'      ;
 $options{password} = 'mkp_loader_2018' ;
 $options{database} = 'mkp_products'    ;
-$options{hostname} = 'localhost'       ;
+$options{hostname} = 'mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com'       ;
 $options{timing}   = 0 ;
 $options{print}    = 0 ;
 $options{debug}    = 0 ; # default

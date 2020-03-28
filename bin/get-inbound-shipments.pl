@@ -103,7 +103,7 @@ my %options ;
 $options{username} = 'mkp_loader'      ;
 $options{password} = 'mkp_loader_2018' ;
 $options{database} = 'mkp_products'    ;
-$options{hostname} = 'localhost'       ;
+$options{hostname} = 'mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com'       ;
 $options{timing}   = 0 ;
 $options{verbose}  = 0 ; # default
 

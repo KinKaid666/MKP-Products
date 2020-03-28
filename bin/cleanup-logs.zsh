@@ -1,4 +1,4 @@
-#! /usr/bin/zsh
+#! /bin/zsh
 
 DAYSTOKEEP=7
 LOGDIR=/var/tmp

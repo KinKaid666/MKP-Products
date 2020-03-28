@@ -9,7 +9,7 @@ our @EXPORT_OK = qw();
 use DBI;
 use CGI qw(:standard);
 
-our $userdbh = DBI->connect( "dbi:mysql:usertable", "usertable", "2018userLogin") or
+our $userdbh = DBI->connect( "dbi:mysql:database=usertable;host=mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com", "usertable", "2018userLogin" ) or
     &dienice("Can't connect to db: $DBI::errstr");
 
 sub validate
