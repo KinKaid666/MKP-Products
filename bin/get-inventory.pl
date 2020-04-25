@@ -2,6 +2,7 @@
 
 use strict;
 
+use Try::Tiny ;
 use Amazon::MWS::Client ;
 use DateTime;
 use Date::Manip ;
@@ -155,8 +156,8 @@ my $mws ;
         $value =~ s/^"(.*)"$/$1/g ;
         $credentials->{$key} = $value ;
     }
-    #$credentials->{logfile} = "/var/tmp/mws_log.txt" ;
-    #$credentials->{debug} = 1 ;
+    $credentials->{logfile} = "/tmp/mws_log.txt" ;
+    $credentials->{debug} = 0 ;
     $mws = Amazon::MWS::Client->new(%$credentials) ;
 }
 
@@ -164,7 +165,15 @@ my $mws ;
 # Pull the MWS Inbound Shipment Information
 my $inventoryItems ;
 
-my $req = $mws->ListInventorySupply(QueryStartDateTime => $options{from}) ;
+my $req ;
+try
+{
+    $req = $mws->ListInventorySupply(QueryStartDateTime => $options{from}) ;
+}
+catch
+{
+    print "Catch exception " . Dumper($_) . "\n" ;
+} ;
 while(1)
 {
     my $timer = MKPTimer->new("MWS Pull", *STDOUT, $options{timing}, 1) ;
@@ -195,7 +204,14 @@ while(1)
         }
     }
     last if not defined $req->{NextToken} ;
-    $req = $mws->ListInventorySupplyByNextToken(NextToken => $req->{NextToken}) ;
+    try
+    {
+        $req = $mws->ListInventorySupplyByNextToken(NextToken => $req->{NextToken}) ;
+    }
+    catch
+    {
+        print "Catch exception " . Dumper($_) . "\n" ;
+    } ;
 }
 
 print Dumper($inventoryItems)    if $options{dumper} ;

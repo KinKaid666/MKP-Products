@@ -4,6 +4,7 @@
 # TODO: CouponPaymentEventList
 use strict;
 
+use Try::Tiny ;
 use Amazon::MWS::Client ;
 use DateTime ;
 use Date::Manip ;
@@ -317,12 +318,26 @@ my $groupReq ;
 
 if( defined $end )
 {
-    $groupReq = $mws->ListFinancialEventGroups(FinancialEventGroupStartedAfter  => $start,
-                                               FinancialEventGroupStartedBefore => $end) ;
+    try
+    {
+        $groupReq = $mws->ListFinancialEventGroups(FinancialEventGroupStartedAfter  => $start,
+                                                   FinancialEventGroupStartedBefore => $end) ;
+    }
+    catch
+    {
+        print "Caught exception " . Dumper($_) . "\n" ;
+    } ;
 }
 else
 {
-    $groupReq = $mws->ListFinancialEventGroups(FinancialEventGroupStartedAfter  => $start) ;
+    try
+    {
+        $groupReq = $mws->ListFinancialEventGroups(FinancialEventGroupStartedAfter  => $start) ;
+    }
+    catch
+    {
+        print "Caught exception " . Dumper($_) . "\n" ;
+    } ;
 }
 
 print "groupReq = " . Dumper($groupReq) . "\n" if $options{dumper} ;
@@ -338,7 +353,16 @@ while(1)
         $fegs->{$fGroup->{FinancialEventGroupId}} = $fGroup ;
 
         my $feTokens = 0 ;
-        my $req = $mws->ListFinancialEvents(FinancialEventGroupId => $fGroup->{FinancialEventGroupId}) ;
+        my $req ;
+        try
+        {
+            $req = $mws->ListFinancialEvents(FinancialEventGroupId => $fGroup->{FinancialEventGroupId}) ;
+        }
+        catch
+        {
+            print "Caught exception " . Dumper($_) . "\n" ;
+        } ;
+
         while(1)
         {
             print "[$gTokens] FinancialEventGroupId = $fGroup->{FinancialEventGroupId} [$feTokens]\n" if $options{verbose} ;
@@ -389,14 +413,28 @@ while(1)
             }
 
             last if( not defined $req->{NextToken} ) ;
-            $req = $mws->ListFinancialEventsByNextToken(NextToken => $req->{NextToken}) ;
+            try
+            {
+                $req = $mws->ListFinancialEventsByNextToken(NextToken => $req->{NextToken}) ;
+            }
+            catch
+            {
+                print "Caught exception " . Dumper($_) . "\n" ;
+            };
             $feTokens++ ;
         }
     }
 
     $gTokens++ ;
     last if( not defined $groupReq->{NextToken} ) ;
-    $groupReq = $mws->ListFinancialEventGroupsByNextToken(NextToken => $groupReq->{NextToken}) ;
+    try
+    {
+        $groupReq = $mws->ListFinancialEventGroupsByNextToken(NextToken => $groupReq->{NextToken}) ;
+    }
+    catch
+    {
+        print "Caught exception " . Dumper($_) . "\n" ;
+    };
 }
 
 print "MWS Response = " . Dumper($fegs) . "\n" if $options{dumper} ;

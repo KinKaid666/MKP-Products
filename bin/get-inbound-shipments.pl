@@ -2,6 +2,7 @@
 
 use strict;
 
+use Try::Tiny ;
 use Amazon::MWS::Client ;
 use DateTime ;
 use Date::Manip ;
@@ -146,8 +147,8 @@ my $mws ;
         $credentials->{$key} = $value ;
     }
     my $ldate = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y%m%d_%H%M%S") ;
-    $credentials->{logfile} = "/var/tmp/mws_inbound-log.$ldate.txt" ;
-    $credentials->{debug} = 1 ;
+    $credentials->{logfile} = "/tmp/mws_inbound-log.$ldate.txt" ;
+    $credentials->{debug} = 0 ;
     $mws = Amazon::MWS::Client->new(%$credentials) ;
 }
 
@@ -168,7 +169,15 @@ if( defined $options{statuses} )
 # Pull the MWS Inbound Shipment Information
 my @shipments ;
 my $shipmentItems ;
-my $req = $mws->ListInboundShipments(ShipmentStatusList => \@shipmentStatuses) ;
+my $req ;
+try
+{
+    $req = $mws->ListInboundShipments(ShipmentStatusList => \@shipmentStatuses) ;
+}
+catch
+{
+    print "Caught exception: " . Dumper($_) . "\n" ;
+} ;
 while(1)
 {
     my $timer = MKPTimer->new("MWS Pull", *STDOUT, $options{timing}, 1) ;
@@ -189,7 +198,15 @@ while(1)
                                            $shipment->{ShipFromAddress}->{CountryCode}         . "\n" if $options{verbose} > 1 ;
 
             push @shipments, $shipment ;
-            my $sReq = $mws->ListInboundShipmentItems(ShipmentId => $shipment->{ShipmentId}) ;
+            my $sReq ;
+            try
+            {
+                $sReq = $mws->ListInboundShipmentItems(ShipmentId => $shipment->{ShipmentId}) ;
+            }
+            catch
+            {
+                print "Caught exception: " . Dumper($_) . "\n" ;
+            } ;
             sleep(1) ;
             while(1)
             {
@@ -206,12 +223,26 @@ while(1)
                     }
                 }
                 last if not defined $sReq->{NextToken} ;
-                $sReq = $mws->ListInboundShipmentItemsByNextToken(NextToken => $sReq->{NextToken}) ;
+                try
+                {
+                    $sReq = $mws->ListInboundShipmentItemsByNextToken(NextToken => $sReq->{NextToken}) ;
+                }
+                catch
+                {
+                    print "Caught exception: " . Dumper($_) . "\n" ;
+                } ;
             }
         }
     }
     last if not defined $req->{NextToken} ;
-    $req = $mws->ListInboundShipmentsByNextToken(NextToken => $req->{NextToken}) ;
+    try
+    {
+        $req = $mws->ListInboundShipmentsByNextToken(NextToken => $req->{NextToken}) ;
+    }
+    catch
+    {
+        print "Caught exception: " . Dumper($_) . "\n" ;
+    } ;
 }
 
 print Dumper(\@shipments)    if $options{dumper} ;
