@@ -310,7 +310,7 @@ my $mws ;
     }
     my $ldate = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y%m%d_%H%M%S") ;
     $credentials->{logfile} = "/var/tmp/mws_finanical-log.$ldate.txt" ;
-    $credentials->{debug} = 1 ;
+    $credentials->{debug} = 0 ;
     $mws = Amazon::MWS::Client->new(%$credentials) ;
 }
 
