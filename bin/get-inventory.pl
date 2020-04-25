@@ -156,7 +156,7 @@ my $mws ;
         $value =~ s/^"(.*)"$/$1/g ;
         $credentials->{$key} = $value ;
     }
-    $credentials->{logfile} = "/tmp/mws_log.txt" ;
+    $credentials->{logfile} = "/var/tmp/mws_log.txt" ;
     $credentials->{debug} = 0 ;
     $mws = Amazon::MWS::Client->new(%$credentials) ;
 }

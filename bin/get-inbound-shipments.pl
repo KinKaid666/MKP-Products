@@ -147,7 +147,7 @@ my $mws ;
         $credentials->{$key} = $value ;
     }
     my $ldate = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y%m%d_%H%M%S") ;
-    $credentials->{logfile} = "/tmp/mws_inbound-log.$ldate.txt" ;
+    $credentials->{logfile} = "/var/tmp/mws_inbound-log.$ldate.txt" ;
     $credentials->{debug} = 0 ;
     $mws = Amazon::MWS::Client->new(%$credentials) ;
 }
