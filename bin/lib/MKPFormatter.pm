@@ -9,6 +9,7 @@ require Exporter;
 use POSIX ;
 use Locale::Currency::Format ;
 use DateTime::Format::ISO8601 ;
+use Date::Manip ;
 
 @ISA = qw (Exporter);
 @EXPORT = qw (format_column
@@ -17,8 +18,10 @@ use DateTime::Format::ISO8601 ;
               format_decimal
               format_percent
               format_currency
+              format_date
               $timezone
               convert_amazon_datetime
+              convert_amazon_datetime_to_print
               force_array
               nvl             );
 
@@ -36,6 +39,28 @@ sub convert_amazon_datetime
     my $date = DateTime::Format::ISO8601->parse_datetime(shift) ;
     $date->set_time_zone($timezone) ;
     return $date ;
+}
+
+sub format_date
+{
+    my $x = shift ;
+    my $date ;
+    if($x =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-1][0-9]:[0-5][0-9]:[0-5][0-9]$/)
+    {
+        $date = DateTime::Format::ISO8601->parse_datetime($x) ;
+        $date->set_time_zone($timezone) ;
+    }
+    elsif($x =~ m/^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-1][0-9]):([0-5][0-9]):([0-5][0-9])$/)
+    {
+        $date = DateTime->new( year      => $1,
+                               month     => $2,
+                               day       => $3,
+                               hour      => $4,
+                               minute    => $5,
+                               second    => $6,
+                               time_zone => $timezone) ;
+    }
+    return join ' ', $date->ymd, $date->hms, $timezone->short_name_for_datetime($date) ;
 }
 
 sub force_array
@@ -159,7 +184,6 @@ sub format_html_column
     return $columnText ;
 }
 
-#Ũ
 # Need to write my own
 sub format_currency
 {
@@ -171,9 +195,9 @@ sub format_currency
     $number =~ s/,//g ;
     $number = currency_format('USD', $number, FMT_SYMBOL) ;
     if($places == 0)
-    {   
+    {
         $number =~ s/\.00$//g ;
-    }   
+    }
     return $number ;
 }
 
