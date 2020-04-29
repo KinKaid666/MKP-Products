@@ -2,7 +2,10 @@
 
 use strict;
 
+use Try::Tiny ;
 use Amazon::MWS::Client ;
+use Amazon::MWS::Exception ;
+use Error ;
 use DateTime ;
 use Date::Manip ;
 use Data::Dumper ;
@@ -49,17 +52,20 @@ $options{timing}   = 0 ;
 $options{verbose}  = 0 ; # default
 
 &GetOptions(
-    "database=s"     => \$options{database},
-    "username=s"     => \$options{username},
-    "password=s"     => \$options{password},
-    "start=s"        => \$options{start},
-    "end=s"          => \$options{end},
-    "dumper"         => \$options{dumper},
-    "timing|t+"      => \$options{timing},
-    "status=s@"      => \$options{statuses},
-    "override"       => \$options{override},
-    "verbose|v+"     => \$options{verbose},
-    "usage|help|?"   => sub { &usage_and_die(0) },
+    "database=s"             => \$options{database},
+    "username=s"             => \$options{username},
+    "password=s"             => \$options{password},
+    "start=s"                => \$options{start},
+    "end=s"                  => \$options{end},
+    "with-items"             => \$options{with_items},
+    "with-shipping"          => \$options{with_shipping},
+    "dumper"                 => \$options{dumper},
+    "timing|t+"              => \$options{timing},
+    "status=s@"              => \$options{statuses},
+    "fulfillment-channel=s@" => \$options{fulfillment_channel},
+    "override"               => \$options{override},
+    "verbose|v+"             => \$options{verbose},
+    "usage|help|?"           => sub { &usage_and_die(0) },
 ) || &usage_and_die(1) ;
 
 if( (defined $options{start} and not $options{start} =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) or
@@ -122,27 +128,34 @@ my $mws ;
         $value =~ s/^"(.*)"$/$1/g ;
         $credentials->{$key} = $value ;
     }
-    #$credentials->{logfile} = "/var/tmp/mws_log_orders.txt" ;
-    #$credentials->{debug} = 1 ;
+    $credentials->{logfile} = "/tmp/mws_log_orders.txt" ;
+    $credentials->{debug} = 1 ;
     $mws = Amazon::MWS::Client->new(%$credentials) ;
 }
 
-
 #
-# Pull the MWS Inbound Shipment Information
+# Pull the MWS Orders
 my @orders ;
 my $orderItems ;
 my $req ;
 my @marketplaces ;
 push @marketplaces, "ATVPDKIKX0DER" ;
-if( defined $end )
+my $arguments ;
+$arguments->{CreatedAfter}       = $start if(defined $start) ;
+$arguments->{CreatedBefore}      = $end   if(defined $end) ;
+$arguments->{MarketplaceId}      = \@marketplaces ;
+$arguments->{FulfillmentChannel} = $options{fulfillment_channel} if(defined $options{fulfillment_channel}) ;
+$arguments->{OrderStatus}        = $options{statuses}            if(defined $options{statuses}) ;
+
+print Dumper($arguments) if $options{dumper} ;
+try
 {
-    $req = $mws->ListOrders(CreatedAfter => $start, CreatedBefore => $end, MarketplaceId => \@marketplaces) ;
+    $req = $mws->ListOrders(%$arguments) ;
 }
-else
+catch
 {
-    $req = $mws->ListOrders(CreatedAfter => $start, MarketplaceId => \@marketplaces) ;
-}
+    die "Caught exception " . Dumper($_) . "\n" ;
+} ;
 
 while(1)
 {
@@ -156,15 +169,24 @@ while(1)
             push @orders, $order ;
 
             print "AmazonOrderId = $order->{AmazonOrderId}\n" if $options{verbose} ;
-            print "    PurchaseDate                 = " . &convert_amazon_datetime($order->{PurchaseDate}) . " ET\n" if $options{verbose} ;
-            print "    LatestShipDate               = " . &convert_amazon_datetime($order->{LatestShipDate}) . " ET\n" if $options{verbose} ;
+            print "    PurchaseDate                 = " . &format_date($order->{PurchaseDate}) . "\n" if $options{verbose} ;
+            print "    LatestShipDate               = " . &format_date($order->{LatestShipDate}) . "\n" if $options{verbose} ;
             print "    OrderType                    = $order->{OrderType}\n" if $options{verbose} ;
             print "    OrderTotal                   = " . &nvl($order->{OrderTotal}->{Amount}) . "\n" if $options{verbose} ;
             print "    OrderStatus                  = $order->{OrderStatus}\n" if $options{verbose} ;
-            print "    LastUpdateDate               = $order->{LastUpdateDate}\n" if $options{verbose} ;
+            print "    LastUpdateDate               = " . &format_date($order->{LastUpdateDate}) . "\n" if $options{verbose} ;
             print "    ShipmentServiceLevelCategory = $order->{ShipmentServiceLevelCategory}\n" if $options{verbose} ;
 
-            my $oReq = $mws->ListOrderItems(AmazonOrderId => $order->{AmazonOrderId}) ;
+            next if(not $options{with_items} ) ;
+            my $oReq ;
+            try
+            {
+                $oReq = $mws->ListOrderItems(AmazonOrderId => $order->{AmazonOrderId}) ;
+            }
+            catch
+            {
+                print "Caught exception " . Dumper($_) . "\n" ;
+            } ;
             print Dumper($oReq) if $options{dumper} ;
             sleep(1) ;
             while(1)
@@ -173,30 +195,44 @@ while(1)
                 {
                     foreach my $item (@{&force_array($oReq->{OrderItems}->{OrderItem})})
                     {
-                        print "    SKU = $item->{SellerSKU}\n" if $options{verbose} > 1 ;
-                        print "        ASIN              = $item->{ASIN}\n" if $options{verbose} > 1 ;
-                        print "        Title             = $item->{Title}\n" if $options{verbose} > 1 ;
-                        print "        QuantityOrdered   = " . &nvl($item->{QuantityOrdered})             . "\n" if $options{verbose} > 1 ;
-                        print "        QuantityShipped   = " . &nvl($item->{QuantityShipped})             . "\n" if $options{verbose} > 1 ;
-                        print "        OrderItemId       = " . &nvl($item->{OrderItemId})                 . "\n" if $options{verbose} > 1 ;
-                        print "        ItemPrice         = " . &nvl($item->{ItemPrice}->{Amount})         . "\n" if $options{verbose} > 1 ;
-                        print "        ShippingPrice     = " . &nvl($item->{ShippingPrice}->{Amount})     . "\n" if $options{verbose} > 1 ;
-                        print "        ShippingDiscount  = " . &nvl($item->{ShippingDiscount}->{Amount})  . "\n" if $options{verbose} > 1 ;
-                        print "        ShippingTax       = " . &nvl($item->{ShippingTax}->{Amount})       . "\n" if $options{verbose} > 1 ;
-                        print "        GiftWrapPrice     = " . &nvl($item->{GiftWrapPrice}->{Amount})     . "\n" if $options{verbose} > 1 ;
-                        print "        GiftWrapTax       = " . &nvl($item->{GiftWrapTax}->{Amount})       . "\n" if $options{verbose} > 1 ;
-                        print "        ItemTax           = " . &nvl($item->{ItemTax}->{Amount})           . "\n" if $options{verbose} > 1 ;
-                        print "        PromotionDiscount = " . &nvl($item->{PromotionDiscount}->{Amount}) . "\n" if $options{verbose} > 1 ;
+                        print "    SKU = $item->{SellerSKU}\n" if $options{verbose} ;
+                        print "        ASIN              = $item->{ASIN}\n" if $options{verbose} ;
+                        print "        Title             = $item->{Title}\n" if $options{verbose} ;
+                        print "        QuantityOrdered   = " . &nvl($item->{QuantityOrdered})             . "\n" if $options{verbose} ;
+                        print "        QuantityShipped   = " . &nvl($item->{QuantityShipped})             . "\n" if $options{verbose} ;
+                        print "        OrderItemId       = " . &nvl($item->{OrderItemId})                 . "\n" if $options{verbose} ;
+                        print "        ItemPrice         = " . &nvl($item->{ItemPrice}->{Amount})         . "\n" if $options{verbose} ;
+                        print "        ShippingPrice     = " . &nvl($item->{ShippingPrice}->{Amount})     . "\n" if $options{verbose} ;
+                        print "        ShippingDiscount  = " . &nvl($item->{ShippingDiscount}->{Amount})  . "\n" if $options{verbose} ;
+                        print "        ShippingTax       = " . &nvl($item->{ShippingTax}->{Amount})       . "\n" if $options{verbose} ;
+                        print "        GiftWrapPrice     = " . &nvl($item->{GiftWrapPrice}->{Amount})     . "\n" if $options{verbose} ;
+                        print "        GiftWrapTax       = " . &nvl($item->{GiftWrapTax}->{Amount})       . "\n" if $options{verbose} ;
+                        print "        ItemTax           = " . &nvl($item->{ItemTax}->{Amount})           . "\n" if $options{verbose} ;
+                        print "        PromotionDiscount = " . &nvl($item->{PromotionDiscount}->{Amount}) . "\n" if $options{verbose} ;
                         push @{$orderItems->{$order->{AmazonOrderId}}}, $item ;
                     }
                 }
                 last if not defined $oReq->{NextToken} ;
-                $oReq = $mws->ListOrderItemsByNextToken(NextToken => $oReq->{NextToken}) ;
+                try
+                {
+                    $oReq = $mws->ListOrderItemsByNextToken(NextToken => $oReq->{NextToken}) ;
+                }
+                catch
+                {
+                    print "Caught exception " . Dumper($_) . "\n" ;
+                } ;
             }
         }
     }
     last if not defined $req->{NextToken} ;
-    $req = $mws->ListOrdersByNextToken(NextToken => $req->{NextToken}) ;
+    try
+    {
+        $req = $mws->ListOrdersByNextToken(NextToken => $req->{NextToken}) ;
+    }
+    catch
+    {
+        print "Caught exception " . Dumper($_) . "\n" ;
+    } ;
 }
 
 print Dumper(\@orders)    if $options{dumper} ;
@@ -206,14 +242,42 @@ my $orderCount = 0 ;
 my $skuCount = 0 ;
 foreach my $o (@orders)
 {
+    if($options{with_shipping})
+    {
+        try
+        {
+            print "About to call MWS::GetEligibleShippingServices\n" ;
+            my $sReq = $mws->GetEligibleShippingServices(
+                'ShipmentRequestDetails.AmazonOrderId' => $o->{AmazonOrderId},
+                'ShipmentRequestDetails.ShipFromAddress.Name'             => 'Eric Ferguson',
+                'ShipmentRequestDetails.ShipFromAddress.AddressLine1'     => '1750 W Division St Apt 401',
+                'ShipmentRequestDetails.ShipFromAddress.City'             => 'Chicago',
+                'ShipmentRequestDetails.ShipFromAddress.StateOrProvince'  => 'IL',
+                'ShipmentRequestDetails.ShipFromAddress.PostalCode'       => '60622',
+                'ShipmentRequestDetails.ShipFromAddress.CountryCode'      => 'US',
+                #'ShipmentRequestDetails.PackageDimensions.Length'         => {                type => 'nonNegativeInteger' },
+                #'ShipmentRequestDetails.PackageDimensions.Wdith'          => {                type => 'nonNegativeInteger' },
+                #'ShipmentRequestDetails.PackageDimensions.Height'         => {                type => 'nonNegativeInteger' },
+                #'ShipmentRequestDetails.PackageDimensions.Unit'           => {                type => 'nonNegativeInteger' },
+                #'ShipmentRequestDetails.PackageDimensions.PredefinedPackageDimensions' => {    type => 'string' },
+                'ShipmentRequestDetails.Weight.Value' => 3,
+                'ShipmentRequestDetails.Weight.Unit'  => 'ounces',
+            ) ;
+            print Dumper($sReq) ;
+        }
+        catch
+        {
+            print "Caught exception " . Dumper($_) . "\n" ;
+        } ;
+    }
     $orderCount++ ;
+if( 0 )
+{
 
     #
     # Insert or Update order
     print "Inserting/Updating Order $o->{AmazonOrderId}\n" if $options{verbose} ;
     my $localOrder ;
-if( 0 )
-{
     my $o_sth = $dbh->prepare(${\SELECT_ORDERS}) ;
     $o_sth->execute($o->{AmazonOrderId}) or die "'" . $o_sth->errstr . "'\n" ;
     if( $o_sth->rows > 0 )
@@ -251,7 +315,6 @@ if( 0 )
         $new_sth->execute($o->{AmazonOrderId}) or die "'" . $new_sth->errstr . "'\n" ;
         $localOrder = $new_sth->fetchrow_hashref() ;
     }
-}
 
     #
     # Load items
@@ -259,8 +322,6 @@ if( 0 )
     {
         $skuCount += $item->{QuantityOrdered} ;
         print "    Inserting/Updating Amazon Order Item $item->{SellerSKU} [" . (defined $item->{QuantityOrdered} ? $item->{QuantityOrdered} : 0) . "]\n" if $options{verbose} ;
-if( 0 )
-{
         my $o_sth = $dbh->prepare(${\SELECT_ORDER_ITEMS}) ;
         $o_sth->execute($localOrder->{id}, $item->{SellerSKU}) or die "'" . $o_sth->errstr . "'\n" ;
         my $localItem ;
@@ -302,7 +363,7 @@ if( 0 )
 } # if 0
 }
 
-print "Found $orderCount orders, with $skuCount units\n" ;
+print "Found $orderCount orders" . ($options{with_items} ? ", with $skuCount units" : "") . ".\n" ;
 
 sub usage_and_die
 {
