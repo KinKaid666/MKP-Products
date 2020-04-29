@@ -45,12 +45,13 @@ sub format_date
 {
     my $x = shift ;
     my $date ;
-    if($x =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-1][0-9]:[0-5][0-9]:[0-5][0-9]$/)
+    if($x =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]\.[0-9]+Z$/ ||
+       $x =~ m/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]+Z$/)
     {
         $date = DateTime::Format::ISO8601->parse_datetime($x) ;
         $date->set_time_zone($timezone) ;
     }
-    elsif($x =~ m/^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-1][0-9]):([0-5][0-9]):([0-5][0-9])$/)
+    elsif($x =~ m/^([0-9]{4})-([0-9]{2})-([0-9]{2}) ([0-2][0-9]):([0-5][0-9]):([0-5][0-9])$/)
     {
         $date = DateTime->new( year      => $1,
                                month     => $2,
@@ -59,6 +60,10 @@ sub format_date
                                minute    => $5,
                                second    => $6,
                                time_zone => $timezone) ;
+    }
+    else
+    {
+        die "Unknown date format: " . $x ;
     }
     return join ' ', $date->ymd, $date->hms, $timezone->short_name_for_datetime($date) ;
 }
