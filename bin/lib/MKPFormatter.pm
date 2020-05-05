@@ -29,6 +29,7 @@ our $timezone ;
 {
     open my $tz, '<', '/etc/timezone' or die $!;
     my $timezone_name = <$tz>;
+    close $tz ;
     chomp($timezone_name) ;
     $timezone = DateTime::TimeZone->new( name => $timezone_name );
 }
