@@ -17,6 +17,7 @@ use File::Basename qw(dirname basename) ;
 use Cwd qw(abs_path) ;
 use lib &dirname(&abs_path($0)) . "/lib" ;
 use MKPTimer ;
+use MKPDatabase ;
 
 use constant SKUS_SELECT_STATEMENT      => qq( select sku from skus where sku = ? ) ;
 use constant SKU_COSTS_SELECT_STATEMENT => qq( select sku from sku_costs where sku = ? and end_date is null ) ;
@@ -26,16 +27,11 @@ use constant SKU_COSTS_DELETE_STATEMENT => qq( delete from sku_costs where sku =
 use constant SKU_COSTS_INSERT_STATEMENT => qq( insert into sku_costs ( sku, cost, start_date ) value ( ?, ?, ? ) ) ;
 
 my %options ;
-$options{username} = 'mkp_loader'      ;
-$options{password} = 'mkp_loader_2018' ;
-$options{database} = 'mkp_products'    ;
-$options{hostname} = 'mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com'       ;
 $options{timing}   = 0 ;
 $options{print}    = 0 ;
 $options{debug}    = 0 ; # default
 
 &GetOptions(
-    "database=s"     => \$options{database},
     "filename=s"     => \$options{filename},
     "print"          => \$options{print},
     "timing"         => sub { $options{timing}++ },
@@ -96,29 +92,17 @@ my $sku_costs ;
     print "\$sku_costs = " . Dumper($sku_costs) . "\n\n"     if $options{debug} > 1 ;
 }
 
-
-# Connect to the database.
-my $dbh ;
-{
-    my $timer = MKPTimer->new("DB Connection", *STDOUT, $options{timing}, 1) ;
-    $dbh = DBI->connect("DBI:mysql:database=$options{database};host=$options{hostname}",
-                       $options{username},
-                       $options{password},
-                       {'RaiseError' => 1});
-}
-
-
 #
 # Insert each order
 {
     my $timer = MKPTimer->new("INSERT", *STDOUT, $options{timing}, 1) ;
 
-    my $sku_s_stmt = $dbh->prepare(${\SKUS_SELECT_STATEMENT}) ;
+    my $sku_s_stmt = $mwsDB->prepare(${\SKUS_SELECT_STATEMENT}) ;
 
-    my $s_stmt = $dbh->prepare(${\SKU_COSTS_SELECT_STATEMENT}) ;
-    my $u_stmt = $dbh->prepare(${\SKU_COSTS_UPDATE_STATEMENT}) ;
-    my $d_stmt = $dbh->prepare(${\SKU_COSTS_DELETE_STATEMENT}) ;
-    my $i_stmt = $dbh->prepare(${\SKU_COSTS_INSERT_STATEMENT}) ;
+    my $s_stmt = $mwsDB->prepare(${\SKU_COSTS_SELECT_STATEMENT}) ;
+    my $u_stmt = $mwsDB->prepare(${\SKU_COSTS_UPDATE_STATEMENT}) ;
+    my $d_stmt = $mwsDB->prepare(${\SKU_COSTS_DELETE_STATEMENT}) ;
+    my $i_stmt = $mwsDB->prepare(${\SKU_COSTS_INSERT_STATEMENT}) ;
     foreach my $sku (keys %$sku_costs)
     {
         my $sku_cost = $sku_costs->{$sku} ;
@@ -179,7 +163,7 @@ my $dbh ;
     $s_stmt->finish();
 }
 # Disconnect from the database.
-$dbh->disconnect();
+$mwsDB->disconnect();
 
 sub usage_and_die
 {

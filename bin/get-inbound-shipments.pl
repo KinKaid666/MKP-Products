@@ -17,12 +17,8 @@ use lib &dirname(&abs_path($0)) . "/lib" ;
 
 use MKPFormatter ;
 use MKPTimer ;
-
-use constant SELECT_ORDER_CHANNEL_CREDENTIALS => qq(
-    select credentials
-      from order_channel_credentials
-     where source_name = ?
-) ;
+use MKPDatabase ;
+use MKPMWS ;
 
 # mysql> desc inbound_shipments ;
 # +-------------------+------------------+------+-----+-------------------+-----------------------------+
@@ -101,17 +97,10 @@ use constant UPDATE_INBOUND_SHIPMENT_ITEMS => qq(
 #
 # Parse options and set defaults
 my %options ;
-$options{username} = 'mkp_loader'      ;
-$options{password} = 'mkp_loader_2018' ;
-$options{database} = 'mkp_products'    ;
-$options{hostname} = 'mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com'       ;
 $options{timing}   = 0 ;
 $options{verbose}  = 0 ; # default
 
 &GetOptions(
-    "database=s"     => \$options{database},
-    "username=s"     => \$options{username},
-    "password=s"     => \$options{password},
     "dumper"         => \$options{dumper},
     "timing|t+"      => \$options{timing},
     "status=s@"      => \$options{statuses},
@@ -119,38 +108,6 @@ $options{verbose}  = 0 ; # default
     "verbose|v+"     => \$options{verbose},
     "usage|help|?"   => sub { &usage_and_die(0) },
 ) || &usage_and_die(1) ;
-
-
-# Connect to the database.
-my $dbh ;
-{
-    my $timer = MKPTimer->new("DB Connection", *STDOUT, $options{timing}, 1) ;
-    $dbh = DBI->connect("DBI:mysql:database=$options{database};host=$options{hostname}",
-                       $options{username},
-                       $options{password});
-}
-
-my $mws ;
-{
-    my $credentials ;
-    my $sth = $dbh->prepare(${\SELECT_ORDER_CHANNEL_CREDENTIALS}) ;
-    $sth->execute('www.amazon.com') or die $sth->errstr ;
-    if( $sth->rows != 1 )
-    {
-        die "Found incorrect number of credentials" ;
-    }
-    my $string = $sth->fetchrow_hashref() ;
-    foreach my $cred (split(',', $string->{credentials}))
-    {
-        my ($key,$value) = split('=',$cred) ;
-        $value =~ s/^"(.*)"$/$1/g ;
-        $credentials->{$key} = $value ;
-    }
-    my $ldate = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y%m%d_%H%M%S") ;
-    $credentials->{logfile} = "/var/tmp/mws_inbound-log.$ldate.txt" ;
-    $credentials->{debug} = 0 ;
-    $mws = Amazon::MWS::Client->new(%$credentials) ;
-}
 
 my @shipmentStatuses = ("WORKING","SHIPPED","IN_TRANSIT","DELIVERED","CHECKED_IN","RECEIVING") ;
 
@@ -253,7 +210,7 @@ foreach my $s (@shipments)
     #
     # Insert or Update shipment
     print "Inserting/Updating Inbound Shipment $s->{ShipmentId}\n" if $options{verbose} ;
-    my $s_sth = $dbh->prepare(${\SELECT_INBOUND_SHIPMENTS}) ;
+    my $s_sth = $mwsDB->prepare(${\SELECT_INBOUND_SHIPMENTS}) ;
     $s_sth->execute($s->{ShipmentId}) or die "'" . $s_sth->errstr . "'\n" ;
     my $localShipment ;
     if( $s_sth->rows > 0 )
@@ -265,7 +222,7 @@ foreach my $s (@shipments)
         # If its changed; updated it
         if( $localShipment->{condition_name} ne $s->{ShipmentStatus} )
         {
-            my $u_sth = $dbh->prepare(${\UPDATE_INBOUND_SHIPMENTS}) ;
+            my $u_sth = $mwsDB->prepare(${\UPDATE_INBOUND_SHIPMENTS}) ;
             if( not $u_sth->execute( $s->{ShipmentStatus},
                                      $localShipment->{id}) )
             {
@@ -277,7 +234,7 @@ foreach my $s (@shipments)
     {
         #
         # not found, insert it
-        my $i_sth = $dbh->prepare(${\INSERT_INBOUND_SHIPMENTS}) ;
+        my $i_sth = $mwsDB->prepare(${\INSERT_INBOUND_SHIPMENTS}) ;
         if( not $i_sth->execute( "www.amazon.com",
                                  $s->{ShipmentStatus},
                                  $s->{ShipmentId},
@@ -287,7 +244,7 @@ foreach my $s (@shipments)
             print STDERR "Failed to insert inbound_shipments DBI Error: \"" . $i_sth->errstr . "\"\n" ;
         }
 
-        my $new_sth = $dbh->prepare(${\SELECT_INBOUND_SHIPMENTS}) ;
+        my $new_sth = $mwsDB->prepare(${\SELECT_INBOUND_SHIPMENTS}) ;
         $new_sth->execute($s->{ShipmentId}) or die "'" . $new_sth->errstr . "'\n" ;
         $localShipment = $new_sth->fetchrow_hashref() ;
     }
@@ -297,7 +254,7 @@ foreach my $s (@shipments)
     foreach my $item (@{$shipmentItems->{$s->{ShipmentId}}})
     {
         print "Inserting/Updating Inbound Shipment Item $item->{SellerSKU}\n" if $options{verbose} ;
-        my $s_sth = $dbh->prepare(${\SELECT_INBOUND_SHIPMENT_ITEMS}) ;
+        my $s_sth = $mwsDB->prepare(${\SELECT_INBOUND_SHIPMENT_ITEMS}) ;
         $s_sth->execute($localShipment->{id}, $item->{SellerSKU}) or die "'" . $s_sth->errstr . "'\n" ;
         my $localItem ;
         if( $s_sth->rows > 0 )
@@ -309,7 +266,7 @@ foreach my $s (@shipments)
             # Its changed; updated it
             if( $localItem->{quantity_received} != $item->{QuantityReceived} )
             {
-                my $u_sth = $dbh->prepare(${\UPDATE_INBOUND_SHIPMENT_ITEMS}) ;
+                my $u_sth = $mwsDB->prepare(${\UPDATE_INBOUND_SHIPMENT_ITEMS}) ;
                 if( not $u_sth->execute( $item->{QuantityShipped},
                                          $item->{QuantityInCase},
                                          $item->{QuantityReceived},
@@ -324,7 +281,7 @@ foreach my $s (@shipments)
         {
             #
             # Not found, insert it
-            my $i_sth = $dbh->prepare(${\INSERT_INBOUND_SHIPMENT_ITEMS}) ;
+            my $i_sth = $mwsDB->prepare(${\INSERT_INBOUND_SHIPMENT_ITEMS}) ;
             if( not $i_sth->execute( $item->{SellerSKU},
                                      $localShipment->{id},
                                      $item->{QuantityShipped},

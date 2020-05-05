@@ -22,6 +22,8 @@ use lib &dirname(&abs_path($0)) . "/lib" ;
 
 use MKPFormatter ;
 use MKPTimer ;
+use MKPDatabase ;
+use MKPMWS ;
 
 # SQL Statements
 # mysql> desc financial_event_groups ;
@@ -184,26 +186,13 @@ use constant DELETE_FEE_STATEMENT => qq(
     delete from financial_expense_events where feg_id = ?
 ) ;
 
-use constant SELECT_ORDER_CHANNEL_CREDENTIALS => qq(
-    select credentials
-      from order_channel_credentials
-     where source_name = ?
-) ;
-
 #
 # Parse options and set defaults
 my %options ;
-$options{username} = 'mkp_loader'      ;
-$options{password} = 'mkp_loader_2018' ;
-$options{database} = 'mkp_products'    ;
-$options{hostname} = 'mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com' ;
 $options{timing}   = 0 ;
 $options{verbose}  = 0 ; # default
 
 &GetOptions(
-    "database=s"     => \$options{database},
-    "username=s"     => \$options{username},
-    "password=s"     => \$options{password},
     "start=s"        => \$options{start},
     "end=s"          => \$options{end},
     "duration=s"     => \$options{duration},
@@ -281,38 +270,6 @@ if( defined $end and Date_Cmp(DateTime->now()->add(minutes => -2), $end) < 0 )
 }
 
 print "Window requested is $start to " . (defined $end ? $end : "<no end defined>") . "\n" if $options{verbose} ;
-
-
-# Connect to the database.
-my $dbh ;
-{
-    my $timer = MKPTimer->new("DB Connection", *STDOUT, $options{timing}, 1) ;
-    $dbh = DBI->connect("DBI:mysql:database=$options{database};host=$options{hostname}",
-                       $options{username},
-                       $options{password});
-}
-
-my $mws ;
-{
-    my $credentials ;
-    my $sth = $dbh->prepare(${\SELECT_ORDER_CHANNEL_CREDENTIALS}) ;
-    $sth->execute('www.amazon.com') or die $sth->errstr ;
-    if( $sth->rows != 1 )
-    {
-        die "Found incorrect number of credentials" ;
-    }
-    my $string = $sth->fetchrow_hashref() ;
-    foreach my $cred (split(',', $string->{credentials}))
-    {
-        my ($key,$value) = split('=',$cred) ;
-        $value =~ s/^"(.*)"$/$1/g ;
-        $credentials->{$key} = $value ;
-    }
-    my $ldate = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y%m%d_%H%M%S") ;
-    $credentials->{logfile} = "/var/tmp/mws_finanical-log.$ldate.txt" ;
-    $credentials->{debug} = 0 ;
-    $mws = Amazon::MWS::Client->new(%$credentials) ;
-}
 
 my $groupReq ;
 
@@ -1120,7 +1077,7 @@ die if $options{dumper} ;
 
         print "Loading financial_event_group $feg_id\n" if $options{verbose} > 0 ;
 
-        my $s_sth = $dbh->prepare(${\SELECT_FEG_STATEMENT}) ;
+        my $s_sth = $mwsDB->prepare(${\SELECT_FEG_STATEMENT}) ;
         $s_sth->execute($feg->{FinancialEventGroupId}) or die $s_sth->errstr ;
 
         if( $s_sth->rows > 0 )
@@ -1150,7 +1107,7 @@ die if $options{dumper} ;
             print "Found non-closed feg $feg->{Id}, reloading\n" if $options{verbose} > 0 ;
             #
             # otherwise insert
-            my $u_sth = $dbh->prepare(${\UPDATE_FEG_STATEMENT}) ;
+            my $u_sth = $mwsDB->prepare(${\UPDATE_FEG_STATEMENT}) ;
             if( not $u_sth->execute( "www.amazon.com"                          ,
                                      $feg->{FinancialEventGroupId}             ,
                                      $feg->{FundTransferDate}                  ,
@@ -1169,12 +1126,12 @@ die if $options{dumper} ;
                 next ;
             }
 
-            my $dfse_sth = $dbh->prepare(${\DELETE_FSE_STATEMENT}) ;
+            my $dfse_sth = $mwsDB->prepare(${\DELETE_FSE_STATEMENT}) ;
             if( not $dfse_sth->execute($feg->{Id}) )
             {
                 print STDERR "Failed to delete FSE while reloading " . $feg->{FinancialEventGroupId} . " DBI Error: \"" . $dfse_sth->errstr . "\".\n" ;
             }
-            my $dfee_sth = $dbh->prepare(${\DELETE_FEE_STATEMENT}) ;
+            my $dfee_sth = $mwsDB->prepare(${\DELETE_FEE_STATEMENT}) ;
             if( not $dfee_sth->execute($feg->{Id}) )
             {
                 print STDERR "Failed to delete FEE while reloading " . $feg->{FinancialEventGroupId} . " DBI Error: \"" . $dfee_sth->errstr . "\".\n" ;
@@ -1184,7 +1141,7 @@ die if $options{dumper} ;
         {
             #
             # otherwise insert
-            my $i_sth = $dbh->prepare(${\INSERT_FEG_STATEMENT}) ;
+            my $i_sth = $mwsDB->prepare(${\INSERT_FEG_STATEMENT}) ;
             if( not $i_sth->execute( "www.amazon.com"                          ,
                                      $feg->{FinancialEventGroupId}             ,
                                      $feg->{FundTransferDate}                  ,
@@ -1223,7 +1180,7 @@ die if $options{dumper} ;
                     print "Load FSE $order $type $sku\n" if $options{verbose} > 0 ;
                     #
                     # insert the item
-                    my $ii_sth = $dbh->prepare(${\INSERT_FSE_STATEMENT}) ;
+                    my $ii_sth = $mwsDB->prepare(${\INSERT_FSE_STATEMENT}) ;
                     if( not $ii_sth->execute( $feg->{Id}                                                                                  ,
                                               $financialShipmentEvents->{$feg_id}->{$order}->{$type}->{$sku}->{Type}                      ,
                                               $financialShipmentEvents->{$feg_id}->{$order}->{$type}->{$sku}->{PostDate}                  ,
@@ -1262,7 +1219,7 @@ die if $options{dumper} ;
 
                 #
                 # insert the expense item
-                my $ii_sth = $dbh->prepare(${\INSERT_FEE_STATEMENT}) ;
+                my $ii_sth = $mwsDB->prepare(${\INSERT_FEE_STATEMENT}) ;
                 if( not $ii_sth->execute( $feg->{Id}                                                           ,
                                           $date                                                                ,
                                           $financialExpenseEvents->{$feg_id}->{$date}->{$type}->{Type}         ,
@@ -1276,7 +1233,7 @@ die if $options{dumper} ;
         }
     }
 
-    $dbh->disconnect() ;
+    $mwsDB->disconnect() ;
 }
 
 sub die_or_set_currency

@@ -15,6 +15,7 @@ use File::Basename qw(dirname basename) ;
 use Cwd qw(abs_path) ;
 use lib &dirname(&abs_path($0)) . "/lib" ;
 use MKPTimer ;
+use MKPDatabase ;
 
 # mysql> desc skus;
 # +---------------+--------------+------+-----+-------------------+-----------------------------+
@@ -51,10 +52,6 @@ use constant SKU_CASE_PACKS_INSERT_STATEMENT => qq( insert into sku_case_packs (
 
 
 my %options ;
-$options{username} = 'mkp_loader'      ;
-$options{password} = 'mkp_loader_2018' ;
-$options{database} = 'mkp_products'    ;
-$options{hostname} = 'mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com'       ;
 $options{timing}   = 0 ;
 $options{print}    = 0 ;
 $options{debug}    = 0 ; # default
@@ -125,25 +122,14 @@ my @skus ;
     print "\@skus = " . Dumper(\@skus) . "\n"              if $options{debug} > 2 ;
 }
 
-# Connect to the database.
-my $dbh ;
-{
-    my $timer = MKPTimer->new("DB Connection", *STDOUT, $options{timing}, 1) ;
-    $dbh = DBI->connect("DBI:mysql:database=$options{database};host=$options{hostname}",
-                       $options{username},
-                       $options{password},
-                       {'RaiseError' => 1});
-}
-
-
 #
 # Insert each order
 {
     my $timer = MKPTimer->new("INSERT", *STDOUT, $options{timing}, 1) ;
 
-    my $s_stmt = $dbh->prepare(${\SKUS_SELECT_STATEMENT}) ;
-    my $u_stmt = $dbh->prepare(${\SKUS_UPDATE_STATEMENT}) ;
-    my $i_stmt = $dbh->prepare(${\SKUS_INSERT_STATEMENT}) ;
+    my $s_stmt = $mwsDB->prepare(${\SKUS_SELECT_STATEMENT}) ;
+    my $u_stmt = $mwsDB->prepare(${\SKUS_UPDATE_STATEMENT}) ;
+    my $i_stmt = $mwsDB->prepare(${\SKUS_INSERT_STATEMENT}) ;
     foreach my $sku (@skus)
     {
         $s_stmt->execute( $sku->{sku} ) or die $s_stmt->errstr ;
@@ -167,7 +153,7 @@ my $dbh ;
 
         if($sku->{has_pack_info})
         {
-            my $pack_s_stmt = $dbh->prepare(${\SKU_CASE_PACKS_SELECT_STATEMENT}) ;
+            my $pack_s_stmt = $mwsDB->prepare(${\SKU_CASE_PACKS_SELECT_STATEMENT}) ;
             $pack_s_stmt->execute($sku->{sku}) or die "'" . $pack_s_stmt->errstr . "'\n" ;
 
             my $localSCP ;
@@ -177,7 +163,7 @@ my $dbh ;
                 if( $localSCP->{vendor_sku} ne $sku->{vendor_sku} or
                     $localSCP->{pack_size}  ne $sku->{pack_size} )
                 {
-                    my $pack_u_stmt = $dbh->prepare(${\SKU_CASE_PACKS_UPDATE_STATEMENT}) ;
+                    my $pack_u_stmt = $mwsDB->prepare(${\SKU_CASE_PACKS_UPDATE_STATEMENT}) ;
                     if( not $pack_u_stmt->execute($sku->{vendor_sku},$sku->{pack_size},$sku->{sku}) )
                     {
                         print STDERR "Failed to update sku_case_packs DBI Error: \"" . $pack_u_stmt->errstr . "\"\n" ;
@@ -188,7 +174,7 @@ my $dbh ;
             {
                 #
                 # not found, insert it
-                my $pack_i_stmt = $dbh->prepare(${\SKU_CASE_PACKS_INSERT_STATEMENT}) ;
+                my $pack_i_stmt = $mwsDB->prepare(${\SKU_CASE_PACKS_INSERT_STATEMENT}) ;
                 if( not ($pack_i_stmt->execute($sku->{sku},
                                                $sku->{vendor_sku},
                                                $sku->{pack_size})) )
@@ -203,7 +189,7 @@ my $dbh ;
     $s_stmt->finish();
 }
 # Disconnect from the database.
-$dbh->disconnect();
+$mwsDB->disconnect();
 
 sub usage_and_die
 {

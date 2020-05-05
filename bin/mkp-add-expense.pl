@@ -15,22 +15,18 @@ use File::Basename qw(dirname basename) ;
 use Cwd qw(abs_path) ;
 use lib &dirname(&abs_path($0)) . "/lib" ;
 use MKPTimer ;
+use MKPDatabase ;
 
 use constant EXPENSES_INSERT_STATEMENT => qq( insert into expenses ( source_name, expense_datetime, type, description, total ) value ( ?, ?, ?, ?, ? ) ) ;
 use constant EXPENSES_SELECT_STATEMENT => qq( select expense_datetime, type, description from expenses where expense_datetime = ? and type = ? and description = ? ) ;
 
 my %options ;
-$options{username} = 'mkp_loader'             ;
-$options{password} = 'mkp_loader_2018'        ;
-$options{database} = 'mkp_products'           ;
 $options{source_name} = 'www.mkpproducts.com' ;
-$options{hostname} = 'mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com'              ;
 $options{timing}   = 0 ;
 $options{print}    = 0 ;
 $options{debug}    = 0 ; # default
 
 &GetOptions(
-    "database=s"     => \$options{database},
     "source_name=s"  => \$options{source_name},
     "type=s"         => \$options{type},
     "description=s"  => \$options{description},
@@ -95,23 +91,13 @@ else
 print "  -> Found " . @expenses . " non-SKU related expense record(s).\n" if $options{debug} > 0 ;
 print "\@expenses = " . Dumper(\@expenses) . "\n"                         if $options{debug} > 1 ;
 
-# Connect to the database.
-my $dbh ;
-{
-    my $timer = MKPTimer->new("DB Connection", *STDOUT, $options{timing}, 1) ;
-    $dbh = DBI->connect("DBI:mysql:database=$options{database};host=$options{hostname}",
-                       $options{username},
-                       $options{password},
-                       {'RaiseError' => 1});
-}
-
 #
 # Insert each expense
 {
     my $timer = MKPTimer->new("Insert expenses", *STDOUT, $options{timing}, 1) ;
 
-    my $i_sth = $dbh->prepare(${\EXPENSES_INSERT_STATEMENT}) ;
-    my $s_sth = $dbh->prepare(${\EXPENSES_SELECT_STATEMENT}) ;
+    my $i_sth = $mwsDB->prepare(${\EXPENSES_INSERT_STATEMENT}) ;
+    my $s_sth = $mwsDB->prepare(${\EXPENSES_SELECT_STATEMENT}) ;
     foreach my $expense (@expenses)
     {
         #
@@ -143,7 +129,7 @@ my $dbh ;
 }
 
 # Disconnect from the database.
-$dbh->disconnect() ;
+$mwsDB->disconnect() ;
 
 sub usage_and_die
 {

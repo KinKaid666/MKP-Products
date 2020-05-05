@@ -17,12 +17,8 @@ use lib &dirname(&abs_path($0)) . "/lib" ;
 
 use MKPFormatter ;
 use MKPTimer ;
-
-use constant SELECT_ORDER_CHANNEL_CREDENTIALS => qq(
-    select credentials
-      from order_channel_credentials
-     where source_name = ?
-) ;
+use MKPDatabase ;
+use MKPMWS ;
 
 # mysql> desc realtime_inventory ;
 # +------------------+------------------+------+-----+-------------------+-----------------------------+
@@ -96,17 +92,10 @@ use constant UPDATE_ACTIVE_SOURCES => qq(
 #
 # Parse options and set defaults
 my %options ;
-$options{username} = 'mkp_loader'      ;
-$options{password} = 'mkp_loader_2018' ;
-$options{database} = 'mkp_products'    ;
-$options{hostname} = 'mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com'       ;
 $options{timing}   = 0 ;
 $options{verbose}  = 0 ; # default
 
 &GetOptions(
-    "database=s"     => \$options{database},
-    "username=s"     => \$options{username},
-    "password=s"     => \$options{password},
     "from=s"         => \$options{from},
     "dumper"         => \$options{dumper},
     "timing|t+"      => \$options{timing},
@@ -129,36 +118,6 @@ if(defined $options{from} and Date_Cmp(DateTime->now(), $options{from}) < 0)
 if( not defined $options{from} )
 {
     $options{from} = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y-%m-%d") ;
-}
-
-# Connect to the database.
-my $dbh ;
-{
-    my $timer = MKPTimer->new("DB Connection", *STDOUT, $options{timing}, 1) ;
-    $dbh = DBI->connect("DBI:mysql:database=$options{database};host=$options{hostname}",
-                       $options{username},
-                       $options{password});
-}
-
-my $mws ;
-{
-    my $credentials ;
-    my $sth = $dbh->prepare(${\SELECT_ORDER_CHANNEL_CREDENTIALS}) ;
-    $sth->execute('www.amazon.com') or die $sth->errstr ;
-    if( $sth->rows != 1 )
-    {
-        die "Found incorrect number of credentials" ;
-    }
-    my $string = $sth->fetchrow_hashref() ;
-    foreach my $cred (split(',', $string->{credentials}))
-    {
-        my ($key,$value) = split('=',$cred) ;
-        $value =~ s/^"(.*)"$/$1/g ;
-        $credentials->{$key} = $value ;
-    }
-    $credentials->{logfile} = "/var/tmp/mws_log.txt" ;
-    $credentials->{debug} = 0 ;
-    $mws = Amazon::MWS::Client->new(%$credentials) ;
 }
 
 #
@@ -220,7 +179,7 @@ foreach my $sku (keys %{$inventoryItems})
 {
     my $timer = MKPTimer->new("Insert SKU $sku", *STDOUT, $options{timing}, 1) ;
     print "Inserting/updating sku $sku\n" if $options{verbose} ;
-    my $s_sth = $dbh->prepare(${\SELECT_ONHAND_INVENTORY}) ;
+    my $s_sth = $mwsDB->prepare(${\SELECT_ONHAND_INVENTORY}) ;
     $s_sth->execute($sku) or die "'" . $s_sth->errstr . "'\n" ;
     if( $s_sth->rows > 0 )
     {
@@ -234,7 +193,7 @@ foreach my $sku (keys %{$inventoryItems})
                  $localSKU->{quantity_total}   eq $inventoryItems->{$sku}->{TotalSupplyQuantity}   and
                  $localSKU->{instock_date}     eq $inventoryItems->{$sku}->{EarliestAvailability}->{DateTime}) )
         {
-            my $u_sth = $dbh->prepare(${\UPDATE_ONHAND_INVENTORY}) ;
+            my $u_sth = $mwsDB->prepare(${\UPDATE_ONHAND_INVENTORY}) ;
             if( not $u_sth->execute("www.amazon.com",
                                     $inventoryItems->{$sku}->{InStockSupplyQuantity},
                                     $inventoryItems->{$sku}->{TotalSupplyQuantity},
@@ -252,7 +211,7 @@ foreach my $sku (keys %{$inventoryItems})
         # Skip new SKUs with no inventory en route or on hand
         next if $inventoryItems->{$sku}->{InStockSupplyQuantity} == 0 and $inventoryItems->{$sku}->{TotalSupplyQuantity} == 0 ;
 
-        my $i_sth = $dbh->prepare(${\INSERT_ONHAND_INVENTORY}) ;
+        my $i_sth = $mwsDB->prepare(${\INSERT_ONHAND_INVENTORY}) ;
         if( not $i_sth->execute($inventoryItems->{$sku}->{SellerSKU},
                                 "www.amazon.com",
                                 $inventoryItems->{$sku}->{InStockSupplyQuantity},
@@ -265,7 +224,7 @@ foreach my $sku (keys %{$inventoryItems})
 
     #
     # Update active sources
-    my $as_sth = $dbh->prepare(${\SELECT_ACTIVE_SOURCES}) ;
+    my $as_sth = $mwsDB->prepare(${\SELECT_ACTIVE_SOURCES}) ;
     $as_sth->execute($sku) or die "'" . $as_sth->errstr . "'\n" ;
     if( $as_sth->rows > 0 )
     {
@@ -279,7 +238,7 @@ foreach my $sku (keys %{$inventoryItems})
         if( not ($localAC->{source_name}   eq "www.amazon.com" and
                  $localAC->{sku_source_id} eq $inventoryItems->{$sku}->{ASIN}) )
         {
-            my $u_sth = $dbh->prepare(${\UPDATE_ACTIVE_SOURCES}) ;
+            my $u_sth = $mwsDB->prepare(${\UPDATE_ACTIVE_SOURCES}) ;
             if( not $u_sth->execute($inventoryItems->{$sku}->{ASIN},
                                     "www.amazon.com",
                                     1,
@@ -297,7 +256,7 @@ foreach my $sku (keys %{$inventoryItems})
 
         #
         # Not found, insert the active source
-        my $i_sth = $dbh->prepare(${\INSERT_ACTIVE_SOURCES}) ;
+        my $i_sth = $mwsDB->prepare(${\INSERT_ACTIVE_SOURCES}) ;
         if( not $i_sth->execute($inventoryItems->{$sku}->{SellerSKU},
                                 $inventoryItems->{$sku}->{ASIN},
                                 "www.amazon.com",
