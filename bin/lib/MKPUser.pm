@@ -9,8 +9,23 @@ our @EXPORT_OK = qw();
 use DBI;
 use CGI qw(:standard);
 
-our $userdbh = DBI->connect( "dbi:mysql:database=usertable;host=mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com", "usertable", "2018userLogin" ) or
-    &dienice("Can't connect to db: $DBI::errstr");
+use MKPDatabase ;
+
+use constant MKP_DB_USER_FILE => qq(/mkp/private/dbuserinfo) ;
+
+our $userdbh ;
+{
+    open my $infofile, '<', ${\MKP_DB_USER_FILE} or die $!;
+    my $info = <$infofile> ;
+    close $infofile ;
+    chomp($info) ;
+    my ($host, $user, $pass, $dbname) = split(":",$info) ;
+    $userdbh = DBI->connect("DBI:mysql:database=$dbname;host=$host",
+                            $user,
+                            $pass,
+                            {'PrintError' => 1}) or
+            &dienice("Can't connect to db: $DBI::errstr");
+}
 
 sub validate
 {
