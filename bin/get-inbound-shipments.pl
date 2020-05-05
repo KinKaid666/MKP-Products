@@ -210,7 +210,7 @@ foreach my $s (@shipments)
     #
     # Insert or Update shipment
     print "Inserting/Updating Inbound Shipment $s->{ShipmentId}\n" if $options{verbose} ;
-    my $s_sth = $mwsDB->prepare(${\SELECT_INBOUND_SHIPMENTS}) ;
+    my $s_sth = $mkpDB->prepare(${\SELECT_INBOUND_SHIPMENTS}) ;
     $s_sth->execute($s->{ShipmentId}) or die "'" . $s_sth->errstr . "'\n" ;
     my $localShipment ;
     if( $s_sth->rows > 0 )
@@ -222,7 +222,7 @@ foreach my $s (@shipments)
         # If its changed; updated it
         if( $localShipment->{condition_name} ne $s->{ShipmentStatus} )
         {
-            my $u_sth = $mwsDB->prepare(${\UPDATE_INBOUND_SHIPMENTS}) ;
+            my $u_sth = $mkpDB->prepare(${\UPDATE_INBOUND_SHIPMENTS}) ;
             if( not $u_sth->execute( $s->{ShipmentStatus},
                                      $localShipment->{id}) )
             {
@@ -234,7 +234,7 @@ foreach my $s (@shipments)
     {
         #
         # not found, insert it
-        my $i_sth = $mwsDB->prepare(${\INSERT_INBOUND_SHIPMENTS}) ;
+        my $i_sth = $mkpDB->prepare(${\INSERT_INBOUND_SHIPMENTS}) ;
         if( not $i_sth->execute( "www.amazon.com",
                                  $s->{ShipmentStatus},
                                  $s->{ShipmentId},
@@ -244,7 +244,7 @@ foreach my $s (@shipments)
             print STDERR "Failed to insert inbound_shipments DBI Error: \"" . $i_sth->errstr . "\"\n" ;
         }
 
-        my $new_sth = $mwsDB->prepare(${\SELECT_INBOUND_SHIPMENTS}) ;
+        my $new_sth = $mkpDB->prepare(${\SELECT_INBOUND_SHIPMENTS}) ;
         $new_sth->execute($s->{ShipmentId}) or die "'" . $new_sth->errstr . "'\n" ;
         $localShipment = $new_sth->fetchrow_hashref() ;
     }
@@ -254,7 +254,7 @@ foreach my $s (@shipments)
     foreach my $item (@{$shipmentItems->{$s->{ShipmentId}}})
     {
         print "Inserting/Updating Inbound Shipment Item $item->{SellerSKU}\n" if $options{verbose} ;
-        my $s_sth = $mwsDB->prepare(${\SELECT_INBOUND_SHIPMENT_ITEMS}) ;
+        my $s_sth = $mkpDB->prepare(${\SELECT_INBOUND_SHIPMENT_ITEMS}) ;
         $s_sth->execute($localShipment->{id}, $item->{SellerSKU}) or die "'" . $s_sth->errstr . "'\n" ;
         my $localItem ;
         if( $s_sth->rows > 0 )
@@ -266,7 +266,7 @@ foreach my $s (@shipments)
             # Its changed; updated it
             if( $localItem->{quantity_received} != $item->{QuantityReceived} )
             {
-                my $u_sth = $mwsDB->prepare(${\UPDATE_INBOUND_SHIPMENT_ITEMS}) ;
+                my $u_sth = $mkpDB->prepare(${\UPDATE_INBOUND_SHIPMENT_ITEMS}) ;
                 if( not $u_sth->execute( $item->{QuantityShipped},
                                          $item->{QuantityInCase},
                                          $item->{QuantityReceived},
@@ -281,7 +281,7 @@ foreach my $s (@shipments)
         {
             #
             # Not found, insert it
-            my $i_sth = $mwsDB->prepare(${\INSERT_INBOUND_SHIPMENT_ITEMS}) ;
+            my $i_sth = $mkpDB->prepare(${\INSERT_INBOUND_SHIPMENT_ITEMS}) ;
             if( not $i_sth->execute( $item->{SellerSKU},
                                      $localShipment->{id},
                                      $item->{QuantityShipped},

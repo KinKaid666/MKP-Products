@@ -10,13 +10,13 @@ use DBI ;
 use MKPTimer ;
 
 @ISA = qw (Exporter);
-@EXPORT = qw ( $mwsDB
-               $mwsDBro );
+@EXPORT = qw ( $mkpDB
+               $mkpDBro );
 
 use constant MKP_DB_LOADER_FILE => qq(/mkp/private/dbloaderinfo) ;
 use constant MKP_DB_WWW_FILE    => qq(/mkp/private/dbwwwinfo) ;
 
-our $mwsDB ;
+our $mkpDB ;
 {
     if( getlogin() eq "ericferg" )
     {
@@ -25,7 +25,7 @@ our $mwsDB ;
         close $infofile ;
         chomp($info) ;
         my ($host, $user, $pass, $dbname) = split(":",$info) ;
-        $mwsDB = DBI->connect("DBI:mysql:database=$dbname;host=$host",
+        $mkpDB = DBI->connect("DBI:mysql:database=$dbname;host=$host",
                            $user,
                            $pass,
                            {'PrintError' => 1});
@@ -33,14 +33,14 @@ our $mwsDB ;
     }
 }
 
-our $mwsDBro ;
+our $mkpDBro ;
 {
     open my $infofile, '<', ${\MKP_DB_WWW_FILE} or die $!;
     my $info = <$infofile> ;
     close $infofile ;
     chomp($info) ;
     my ($host, $user, $pass, $dbname) = split(":",$info) ;
-    $mwsDBro = DBI->connect("DBI:mysql:database=$dbname;host=$host",
+    $mkpDBro = DBI->connect("DBI:mysql:database=$dbname;host=$host",
                                     $user,
                                     $pass,
                                     {'PrintError' => 1});

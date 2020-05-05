@@ -1077,7 +1077,7 @@ die if $options{dumper} ;
 
         print "Loading financial_event_group $feg_id\n" if $options{verbose} > 0 ;
 
-        my $s_sth = $mwsDB->prepare(${\SELECT_FEG_STATEMENT}) ;
+        my $s_sth = $mkpDB->prepare(${\SELECT_FEG_STATEMENT}) ;
         $s_sth->execute($feg->{FinancialEventGroupId}) or die $s_sth->errstr ;
 
         if( $s_sth->rows > 0 )
@@ -1107,7 +1107,7 @@ die if $options{dumper} ;
             print "Found non-closed feg $feg->{Id}, reloading\n" if $options{verbose} > 0 ;
             #
             # otherwise insert
-            my $u_sth = $mwsDB->prepare(${\UPDATE_FEG_STATEMENT}) ;
+            my $u_sth = $mkpDB->prepare(${\UPDATE_FEG_STATEMENT}) ;
             if( not $u_sth->execute( "www.amazon.com"                          ,
                                      $feg->{FinancialEventGroupId}             ,
                                      $feg->{FundTransferDate}                  ,
@@ -1126,12 +1126,12 @@ die if $options{dumper} ;
                 next ;
             }
 
-            my $dfse_sth = $mwsDB->prepare(${\DELETE_FSE_STATEMENT}) ;
+            my $dfse_sth = $mkpDB->prepare(${\DELETE_FSE_STATEMENT}) ;
             if( not $dfse_sth->execute($feg->{Id}) )
             {
                 print STDERR "Failed to delete FSE while reloading " . $feg->{FinancialEventGroupId} . " DBI Error: \"" . $dfse_sth->errstr . "\".\n" ;
             }
-            my $dfee_sth = $mwsDB->prepare(${\DELETE_FEE_STATEMENT}) ;
+            my $dfee_sth = $mkpDB->prepare(${\DELETE_FEE_STATEMENT}) ;
             if( not $dfee_sth->execute($feg->{Id}) )
             {
                 print STDERR "Failed to delete FEE while reloading " . $feg->{FinancialEventGroupId} . " DBI Error: \"" . $dfee_sth->errstr . "\".\n" ;
@@ -1141,7 +1141,7 @@ die if $options{dumper} ;
         {
             #
             # otherwise insert
-            my $i_sth = $mwsDB->prepare(${\INSERT_FEG_STATEMENT}) ;
+            my $i_sth = $mkpDB->prepare(${\INSERT_FEG_STATEMENT}) ;
             if( not $i_sth->execute( "www.amazon.com"                          ,
                                      $feg->{FinancialEventGroupId}             ,
                                      $feg->{FundTransferDate}                  ,
@@ -1180,7 +1180,7 @@ die if $options{dumper} ;
                     print "Load FSE $order $type $sku\n" if $options{verbose} > 0 ;
                     #
                     # insert the item
-                    my $ii_sth = $mwsDB->prepare(${\INSERT_FSE_STATEMENT}) ;
+                    my $ii_sth = $mkpDB->prepare(${\INSERT_FSE_STATEMENT}) ;
                     if( not $ii_sth->execute( $feg->{Id}                                                                                  ,
                                               $financialShipmentEvents->{$feg_id}->{$order}->{$type}->{$sku}->{Type}                      ,
                                               $financialShipmentEvents->{$feg_id}->{$order}->{$type}->{$sku}->{PostDate}                  ,
@@ -1219,7 +1219,7 @@ die if $options{dumper} ;
 
                 #
                 # insert the expense item
-                my $ii_sth = $mwsDB->prepare(${\INSERT_FEE_STATEMENT}) ;
+                my $ii_sth = $mkpDB->prepare(${\INSERT_FEE_STATEMENT}) ;
                 if( not $ii_sth->execute( $feg->{Id}                                                           ,
                                           $date                                                                ,
                                           $financialExpenseEvents->{$feg_id}->{$date}->{$type}->{Type}         ,
@@ -1233,7 +1233,7 @@ die if $options{dumper} ;
         }
     }
 
-    $mwsDB->disconnect() ;
+    $mkpDB->disconnect() ;
 }
 
 sub die_or_set_currency

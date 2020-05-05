@@ -96,8 +96,8 @@ print "\@expenses = " . Dumper(\@expenses) . "\n"                         if $op
 {
     my $timer = MKPTimer->new("Insert expenses", *STDOUT, $options{timing}, 1) ;
 
-    my $i_sth = $mwsDB->prepare(${\EXPENSES_INSERT_STATEMENT}) ;
-    my $s_sth = $mwsDB->prepare(${\EXPENSES_SELECT_STATEMENT}) ;
+    my $i_sth = $mkpDB->prepare(${\EXPENSES_INSERT_STATEMENT}) ;
+    my $s_sth = $mkpDB->prepare(${\EXPENSES_SELECT_STATEMENT}) ;
     foreach my $expense (@expenses)
     {
         #
@@ -129,7 +129,7 @@ print "\@expenses = " . Dumper(\@expenses) . "\n"                         if $op
 }
 
 # Disconnect from the database.
-$mwsDB->disconnect() ;
+$mkpDB->disconnect() ;
 
 sub usage_and_die
 {

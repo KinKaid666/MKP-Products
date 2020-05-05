@@ -127,9 +127,9 @@ my @skus ;
 {
     my $timer = MKPTimer->new("INSERT", *STDOUT, $options{timing}, 1) ;
 
-    my $s_stmt = $mwsDB->prepare(${\SKUS_SELECT_STATEMENT}) ;
-    my $u_stmt = $mwsDB->prepare(${\SKUS_UPDATE_STATEMENT}) ;
-    my $i_stmt = $mwsDB->prepare(${\SKUS_INSERT_STATEMENT}) ;
+    my $s_stmt = $mkpDB->prepare(${\SKUS_SELECT_STATEMENT}) ;
+    my $u_stmt = $mkpDB->prepare(${\SKUS_UPDATE_STATEMENT}) ;
+    my $i_stmt = $mkpDB->prepare(${\SKUS_INSERT_STATEMENT}) ;
     foreach my $sku (@skus)
     {
         $s_stmt->execute( $sku->{sku} ) or die $s_stmt->errstr ;
@@ -153,7 +153,7 @@ my @skus ;
 
         if($sku->{has_pack_info})
         {
-            my $pack_s_stmt = $mwsDB->prepare(${\SKU_CASE_PACKS_SELECT_STATEMENT}) ;
+            my $pack_s_stmt = $mkpDB->prepare(${\SKU_CASE_PACKS_SELECT_STATEMENT}) ;
             $pack_s_stmt->execute($sku->{sku}) or die "'" . $pack_s_stmt->errstr . "'\n" ;
 
             my $localSCP ;
@@ -163,7 +163,7 @@ my @skus ;
                 if( $localSCP->{vendor_sku} ne $sku->{vendor_sku} or
                     $localSCP->{pack_size}  ne $sku->{pack_size} )
                 {
-                    my $pack_u_stmt = $mwsDB->prepare(${\SKU_CASE_PACKS_UPDATE_STATEMENT}) ;
+                    my $pack_u_stmt = $mkpDB->prepare(${\SKU_CASE_PACKS_UPDATE_STATEMENT}) ;
                     if( not $pack_u_stmt->execute($sku->{vendor_sku},$sku->{pack_size},$sku->{sku}) )
                     {
                         print STDERR "Failed to update sku_case_packs DBI Error: \"" . $pack_u_stmt->errstr . "\"\n" ;
@@ -174,7 +174,7 @@ my @skus ;
             {
                 #
                 # not found, insert it
-                my $pack_i_stmt = $mwsDB->prepare(${\SKU_CASE_PACKS_INSERT_STATEMENT}) ;
+                my $pack_i_stmt = $mkpDB->prepare(${\SKU_CASE_PACKS_INSERT_STATEMENT}) ;
                 if( not ($pack_i_stmt->execute($sku->{sku},
                                                $sku->{vendor_sku},
                                                $sku->{pack_size})) )
@@ -189,7 +189,7 @@ my @skus ;
     $s_stmt->finish();
 }
 # Disconnect from the database.
-$mwsDB->disconnect();
+$mkpDB->disconnect();
 
 sub usage_and_die
 {

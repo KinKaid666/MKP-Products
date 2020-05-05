@@ -19,12 +19,8 @@ use lib &dirname(&abs_path($0)) . "/lib" ;
 
 use MKPFormatter ;
 use MKPTimer ;
-
-use constant SELECT_ORDER_CHANNEL_CREDENTIALS => qq(
-    select credentials
-      from order_channel_credentials
-     where source_name = ?
-) ;
+use MKPMWS ;
+use MKPDatabase ;
 
 use constant SELECT_ORDERS => qq(
 ) ;
@@ -44,17 +40,10 @@ use constant UPDATE_ORDER_ITEMS => qq(
 #
 # Parse options and set defaults
 my %options ;
-$options{username} = 'mkp_loader'      ;
-$options{password} = 'mkp_loader_2018' ;
-$options{database} = 'mkp_products'    ;
-$options{hostname} = 'mkp.cjulnvkhabig.us-east-2.rds.amazonaws.com'       ;
 $options{timing}   = 0 ;
 $options{verbose}  = 0 ; # default
 
 &GetOptions(
-    "database=s"             => \$options{database},
-    "username=s"             => \$options{username},
-    "password=s"             => \$options{password},
     "start=s"                => \$options{start},
     "end=s"                  => \$options{end},
     "with-items"             => \$options{with_items},
@@ -83,7 +72,7 @@ if(defined $options{start})
 }
 else
 {
-    $start = UnixDate(DateTime->now()->set_time_zone($timezone),"%Y-%m-%d") ;
+    $start = UnixDate(DateTime->now()->add(days => -7)->set_time_zone($timezone),"%Y-%m-%d") ;
 }
 
 if(Date_Cmp(DateTime->now(), $start) < 0)
@@ -101,37 +90,6 @@ if( defined $end and Date_Cmp(DateTime->now()->add(minutes => -2), $end) < 0 )
 }
 
 print "Window requested is $start to " . (defined $end ? $end : "<no end defined>") . "\n" if $options{verbose} ;
-
-
-# Connect to the database.
-my $dbh ;
-{
-    my $timer = MKPTimer->new("DB Connection", *STDOUT, $options{timing}, 1) ;
-    $dbh = DBI->connect("DBI:mysql:database=$options{database};host=$options{hostname}",
-                       $options{username},
-                       $options{password});
-}
-
-my $mws ;
-{
-    my $credentials ;
-    my $sth = $dbh->prepare(${\SELECT_ORDER_CHANNEL_CREDENTIALS}) ;
-    $sth->execute('www.amazon.com') or die $sth->errstr ;
-    if( $sth->rows != 1 )
-    {
-        die "Found incorrect number of credentials" ;
-    }
-    my $string = $sth->fetchrow_hashref() ;
-    foreach my $cred (split(',', $string->{credentials}))
-    {
-        my ($key,$value) = split('=',$cred) ;
-        $value =~ s/^"(.*)"$/$1/g ;
-        $credentials->{$key} = $value ;
-    }
-    $credentials->{logfile} = "/tmp/mws_log_orders.txt" ;
-    $credentials->{debug} = 1 ;
-    $mws = Amazon::MWS::Client->new(%$credentials) ;
-}
 
 #
 # Pull the MWS Orders
@@ -182,13 +140,13 @@ while(1)
             try
             {
                 $oReq = $mws->ListOrderItems(AmazonOrderId => $order->{AmazonOrderId}) ;
+                sleep(1) ;
             }
             catch
             {
                 print "Caught exception " . Dumper($_) . "\n" ;
             } ;
             print Dumper($oReq) if $options{dumper} ;
-            sleep(1) ;
             while(1)
             {
                 if( exists $oReq->{OrderItems}->{OrderItem} )
@@ -278,7 +236,7 @@ if( 0 )
     # Insert or Update order
     print "Inserting/Updating Order $o->{AmazonOrderId}\n" if $options{verbose} ;
     my $localOrder ;
-    my $o_sth = $dbh->prepare(${\SELECT_ORDERS}) ;
+    my $o_sth = $mkpDB->prepare(${\SELECT_ORDERS}) ;
     $o_sth->execute($o->{AmazonOrderId}) or die "'" . $o_sth->errstr . "'\n" ;
     if( $o_sth->rows > 0 )
     {
@@ -289,7 +247,7 @@ if( 0 )
         # If its changed; updated it
         if( $localOrder->{order_status} ne $o->{OrderStatus} )
         {
-            my $u_sth = $dbh->prepare(${\UPDATE_ORDERS}) ;
+            my $u_sth = $mkpDB->prepare(${\UPDATE_ORDERS}) ;
             if( not $u_sth->execute( $o->{ShipmentStatus},
                                      $localOrder->{id}) )
             {
@@ -301,7 +259,7 @@ if( 0 )
     {
         #
         # not found, insert it
-        my $i_sth = $dbh->prepare(${\INSERT_ORDERS}) ;
+        my $i_sth = $mkpDB->prepare(${\INSERT_ORDERS}) ;
         if( not $i_sth->execute( "www.amazon.com",
                                  $o->{ShipmentStatus},
                                  $o->{ShipmentId},
@@ -311,7 +269,7 @@ if( 0 )
             print STDERR "Failed to insert amazon_orders DBI Error: \"" . $i_sth->errstr . "\"\n" ;
         }
 
-        my $new_sth = $dbh->prepare(${\SELECT_ORDERS}) ;
+        my $new_sth = $mkpDB->prepare(${\SELECT_ORDERS}) ;
         $new_sth->execute($o->{AmazonOrderId}) or die "'" . $new_sth->errstr . "'\n" ;
         $localOrder = $new_sth->fetchrow_hashref() ;
     }
@@ -322,7 +280,7 @@ if( 0 )
     {
         $skuCount += $item->{QuantityOrdered} ;
         print "    Inserting/Updating Amazon Order Item $item->{SellerSKU} [" . (defined $item->{QuantityOrdered} ? $item->{QuantityOrdered} : 0) . "]\n" if $options{verbose} ;
-        my $o_sth = $dbh->prepare(${\SELECT_ORDER_ITEMS}) ;
+        my $o_sth = $mkpDB->prepare(${\SELECT_ORDER_ITEMS}) ;
         $o_sth->execute($localOrder->{id}, $item->{SellerSKU}) or die "'" . $o_sth->errstr . "'\n" ;
         my $localItem ;
         if( $o_sth->rows > 0 )
@@ -334,7 +292,7 @@ if( 0 )
             # Its changed; updated it
             if( $localItem->{quantity_shipped} != $item->{QuantityShipped} )
             {
-                my $u_sth = $dbh->prepare(${\UPDATE_ORDER_ITEMS}) ;
+                my $u_sth = $mkpDB->prepare(${\UPDATE_ORDER_ITEMS}) ;
                 if( not $u_sth->execute( $item->{QuantityShipped},
                                          $item->{QuantityInCase},
                                          $item->{QuantityReceived},
@@ -349,7 +307,7 @@ if( 0 )
         {
             #
             # Not found, insert it
-            my $i_sth = $dbh->prepare(${\INSERT_ORDER_ITEMS}) ;
+            my $i_sth = $mkpDB->prepare(${\INSERT_ORDER_ITEMS}) ;
             if( not $i_sth->execute( $item->{SellerSKU},
                                      $localOrder->{id},
                                      $item->{QuantityShipped},

@@ -97,12 +97,12 @@ my $sku_costs ;
 {
     my $timer = MKPTimer->new("INSERT", *STDOUT, $options{timing}, 1) ;
 
-    my $sku_s_stmt = $mwsDB->prepare(${\SKUS_SELECT_STATEMENT}) ;
+    my $sku_s_stmt = $mkpDB->prepare(${\SKUS_SELECT_STATEMENT}) ;
 
-    my $s_stmt = $mwsDB->prepare(${\SKU_COSTS_SELECT_STATEMENT}) ;
-    my $u_stmt = $mwsDB->prepare(${\SKU_COSTS_UPDATE_STATEMENT}) ;
-    my $d_stmt = $mwsDB->prepare(${\SKU_COSTS_DELETE_STATEMENT}) ;
-    my $i_stmt = $mwsDB->prepare(${\SKU_COSTS_INSERT_STATEMENT}) ;
+    my $s_stmt = $mkpDB->prepare(${\SKU_COSTS_SELECT_STATEMENT}) ;
+    my $u_stmt = $mkpDB->prepare(${\SKU_COSTS_UPDATE_STATEMENT}) ;
+    my $d_stmt = $mkpDB->prepare(${\SKU_COSTS_DELETE_STATEMENT}) ;
+    my $i_stmt = $mkpDB->prepare(${\SKU_COSTS_INSERT_STATEMENT}) ;
     foreach my $sku (keys %$sku_costs)
     {
         my $sku_cost = $sku_costs->{$sku} ;
@@ -163,7 +163,7 @@ my $sku_costs ;
     $s_stmt->finish();
 }
 # Disconnect from the database.
-$mwsDB->disconnect();
+$mkpDB->disconnect();
 
 sub usage_and_die
 {

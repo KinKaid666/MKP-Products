@@ -179,7 +179,7 @@ foreach my $sku (keys %{$inventoryItems})
 {
     my $timer = MKPTimer->new("Insert SKU $sku", *STDOUT, $options{timing}, 1) ;
     print "Inserting/updating sku $sku\n" if $options{verbose} ;
-    my $s_sth = $mwsDB->prepare(${\SELECT_ONHAND_INVENTORY}) ;
+    my $s_sth = $mkpDB->prepare(${\SELECT_ONHAND_INVENTORY}) ;
     $s_sth->execute($sku) or die "'" . $s_sth->errstr . "'\n" ;
     if( $s_sth->rows > 0 )
     {
@@ -193,7 +193,7 @@ foreach my $sku (keys %{$inventoryItems})
                  $localSKU->{quantity_total}   eq $inventoryItems->{$sku}->{TotalSupplyQuantity}   and
                  $localSKU->{instock_date}     eq $inventoryItems->{$sku}->{EarliestAvailability}->{DateTime}) )
         {
-            my $u_sth = $mwsDB->prepare(${\UPDATE_ONHAND_INVENTORY}) ;
+            my $u_sth = $mkpDB->prepare(${\UPDATE_ONHAND_INVENTORY}) ;
             if( not $u_sth->execute("www.amazon.com",
                                     $inventoryItems->{$sku}->{InStockSupplyQuantity},
                                     $inventoryItems->{$sku}->{TotalSupplyQuantity},
@@ -211,7 +211,7 @@ foreach my $sku (keys %{$inventoryItems})
         # Skip new SKUs with no inventory en route or on hand
         next if $inventoryItems->{$sku}->{InStockSupplyQuantity} == 0 and $inventoryItems->{$sku}->{TotalSupplyQuantity} == 0 ;
 
-        my $i_sth = $mwsDB->prepare(${\INSERT_ONHAND_INVENTORY}) ;
+        my $i_sth = $mkpDB->prepare(${\INSERT_ONHAND_INVENTORY}) ;
         if( not $i_sth->execute($inventoryItems->{$sku}->{SellerSKU},
                                 "www.amazon.com",
                                 $inventoryItems->{$sku}->{InStockSupplyQuantity},
@@ -224,7 +224,7 @@ foreach my $sku (keys %{$inventoryItems})
 
     #
     # Update active sources
-    my $as_sth = $mwsDB->prepare(${\SELECT_ACTIVE_SOURCES}) ;
+    my $as_sth = $mkpDB->prepare(${\SELECT_ACTIVE_SOURCES}) ;
     $as_sth->execute($sku) or die "'" . $as_sth->errstr . "'\n" ;
     if( $as_sth->rows > 0 )
     {
@@ -238,7 +238,7 @@ foreach my $sku (keys %{$inventoryItems})
         if( not ($localAC->{source_name}   eq "www.amazon.com" and
                  $localAC->{sku_source_id} eq $inventoryItems->{$sku}->{ASIN}) )
         {
-            my $u_sth = $mwsDB->prepare(${\UPDATE_ACTIVE_SOURCES}) ;
+            my $u_sth = $mkpDB->prepare(${\UPDATE_ACTIVE_SOURCES}) ;
             if( not $u_sth->execute($inventoryItems->{$sku}->{ASIN},
                                     "www.amazon.com",
                                     1,
@@ -256,7 +256,7 @@ foreach my $sku (keys %{$inventoryItems})
 
         #
         # Not found, insert the active source
-        my $i_sth = $mwsDB->prepare(${\INSERT_ACTIVE_SOURCES}) ;
+        my $i_sth = $mkpDB->prepare(${\INSERT_ACTIVE_SOURCES}) ;
         if( not $i_sth->execute($inventoryItems->{$sku}->{SellerSKU},
                                 $inventoryItems->{$sku}->{ASIN},
                                 "www.amazon.com",
