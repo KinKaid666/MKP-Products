@@ -24,7 +24,7 @@ use constant SELECT_ORDER_CHANNEL_CREDENTIALS => qq(
 our $mws ;
 {
     my $credentials ;
-    my $sth = $mkpDB->prepare(${\SELECT_ORDER_CHANNEL_CREDENTIALS}) ;
+    my $sth = $mkpDBro->prepare(${\SELECT_ORDER_CHANNEL_CREDENTIALS}) ;
     $sth->execute('www.amazon.com') or die $sth->errstr ;
     if( $sth->rows != 1 )
     {
