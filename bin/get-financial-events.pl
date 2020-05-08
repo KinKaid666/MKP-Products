@@ -2,6 +2,8 @@
 
 #
 # TODO: CouponPaymentEventList
+# TODO: ExportCharge (NbqSPgM6QXaVfU83A2td7tqqF6lC5n2TPmvl)
+# TODO: Null SKU (kE60muWzqSBGaKw7o5gttDs875bHB4ENTTII6fpVorw) 112-8250285-7601038
 use strict;
 
 use Try::Tiny ;
@@ -191,6 +193,7 @@ use constant DELETE_FEE_STATEMENT => qq(
 my %options ;
 $options{timing}   = 0 ;
 $options{verbose}  = 0 ; # default
+$options{force}    = 0 ; # default
 
 &GetOptions(
     "start=s"        => \$options{start},
@@ -199,6 +202,8 @@ $options{verbose}  = 0 ; # default
     "dumper"         => \$options{dumper},
     "timing|t+"      => \$options{timing},
     "verbose|d+"     => \$options{verbose},
+    "reload=s@"      => \$options{reload},
+    "force|f+"       => \$options{force},
     "usage|help|?"   => sub { &usage_and_die(0) },
 ) || &usage_and_die(1) ;
 
@@ -206,6 +211,7 @@ if( $options{verbose} or $options{timing} )
 {
     print "Debug  = $options{verbose}\n" ;
     print "Timing = $options{timing}\n" ;
+    print "Force  = $options{force}\n" ;
 }
 
 # pure verbose; remove before prod
@@ -273,6 +279,9 @@ print "Window requested is $start to " . (defined $end ? $end : "<no end defined
 
 my $groupReq ;
 
+# Debug if you want
+$mws->{debug} = 1 if $options{verbose} ;
+
 if( defined $end )
 {
     try
@@ -298,6 +307,9 @@ else
 }
 
 print "groupReq = " . Dumper($groupReq) . "\n" if $options{dumper} ;
+my $reloads ;
+$reloads = join ' ', @{$options{reload}} if defined $options{reload} ;
+
 #
 # Pull all the data from Amazon and merge into one data structure
 my $fegs ;
@@ -307,6 +319,8 @@ while(1)
     my $timer = MKPTimer->new("MWS Pull", *STDOUT, $options{timing}, 1) ;
     foreach my $fGroup (@{&force_array($groupReq->{FinancialEventGroupList}->{FinancialEventGroup})})
     {
+        # skip the ones we don't want to reload
+        next if( defined $reloads and $reloads !~ /$fGroup->{FinancialEventGroupId}/ ) ;
         $fegs->{$fGroup->{FinancialEventGroupId}} = $fGroup ;
 
         my $feTokens = 0 ;
@@ -372,6 +386,7 @@ while(1)
             last if( not defined $req->{NextToken} ) ;
             try
             {
+                sleep(3) ;
                 $req = $mws->ListFinancialEventsByNextToken(NextToken => $req->{NextToken}) ;
             }
             catch
@@ -386,6 +401,7 @@ while(1)
     last if( not defined $groupReq->{NextToken} ) ;
     try
     {
+        sleep(3) ;
         $groupReq = $mws->ListFinancialEventGroupsByNextToken(NextToken => $groupReq->{NextToken}) ;
     }
     catch
@@ -551,6 +567,7 @@ my $financialExpenseEvents ;
                         print "\t\t\t\t\$other_fees                  = $other_fees\n"                   if $options{verbose} > 2 ;
                         print "\t\t\t\t\$cc                          = $cc\n"                           if $options{verbose} > 2 ;
                         print "\t\t\tTotal = $total\n" if $options{verbose} > 1 ;
+                        print "\tDone processing Shipment $feg_id : $shipment->{AmazonOrderId},$total\n" if $options{verbose} > 1 ;
 
                         #
                         # Add each event to the compressed data structure
@@ -601,6 +618,7 @@ my $financialExpenseEvents ;
 
         #
         # Process Refund List
+        # TODO: ItemTaxWithheldList
         if( exists $feg->{FinancialEvents}->{RefundEventList}->{ShipmentEvent} )
         {
             foreach my $shipment (@{&force_array($feg->{FinancialEvents}->{RefundEventList}->{ShipmentEvent})})
@@ -677,6 +695,24 @@ my $financialExpenseEvents ;
                                 $promotional_rebates += $fee->{PromotionAmount}->{CurrencyAmount} ;
                             }
                         }
+
+                        #
+                        # Check for taxes (given back to us)
+                        if( exists $item->{ItemTaxWithheldList} and
+                            exists $item->{ItemTaxWithheldList}->{TaxWithheldComponent} and
+                            exists $item->{ItemTaxWithheldList}->{TaxWithheldComponent}->{TaxesWithheld} and
+                            exists $item->{ItemTaxWithheldList}->{TaxWithheldComponent}->{TaxesWithheld}->{ChargeComponent} )
+                        {
+                            print "\t\t\t\tFound Taxes\n" if $options{verbose} > 2 ;
+                            print "\t\t\t\t\tTaxe Model = " . &nvl($item->{ItemTaxWithheldList}->{TaxWithheldComponent}->{TaxCollectionModel}) . "\n" if $options{verbose} > 2 ;
+                            foreach my $tax (@{&force_array($item->{ItemTaxWithheldList}->{TaxWithheldComponent}->{TaxesWithheld}->{ChargeComponent})})
+                            {
+                                print "\t\t\t\t\t" . &nvl($tax->{ChargeType}) . " = " . &nvl($tax->{ChargeAmount}->{CurrencyAmount}) . " " . &nvl($tax->{ChargeAmount}->{CurrencyCode}) . "\n" if $options{verbose} > 2 ;
+
+                                $cc = &die_or_set_currency($cc,$tax->{ChargeAmount}->{CurrencyCode}) ;
+                                $marketplace_facilitator_tax += $tax->{ChargeAmount}->{CurrencyAmount} ;
+                            }
+                        }
                         $total = $products_charges + $products_charges_tax + $shipping_charges + $shipping_charges_tax + $giftwrap_charges + $giftwrap_charges_tax + $marketplace_facilitator_tax + $promotional_rebates + $selling_fees + $fba_fees + $other_fees;
 
                         print "\t\t\t\t\$products_charges            = $products_charges\n"            if $options{verbose} > 2 ;
@@ -692,6 +728,7 @@ my $financialExpenseEvents ;
                         print "\t\t\t\t\$other_fees                  = $other_fees\n"                  if $options{verbose} > 2 ;
                         print "\t\t\t\t\$cc                          = $cc\n"                          if $options{verbose} > 2 ;
                         print "\t\t\tTotal = $total\n" if $options{verbose} > 1 ;
+                        print "\tDone processing Refund $feg_id : $shipment->{AmazonOrderId},$total\n" if $options{verbose} > 1 ;
 
                         #
                         # Add each event to the compressed data structure
@@ -844,12 +881,18 @@ my $financialExpenseEvents ;
                 }
                 else
                 {
-                    #
                     # We have an adjustment without a shipment or SKU
-                    $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Type}         = $adj->{AdjustmentType};
-                    $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Description}  = $adj->{AdjustmentType};
-                    $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Value}        = $adj->{AdjustmentAmount}->{CurrencyAmount} ;
-                    $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{CurrencyCode} = $cc ;
+                    if(exists $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Type})
+                    {
+                        $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Value}        += $adj->{AdjustmentAmount}->{CurrencyAmount} ;
+                    }
+                    else
+                    {
+                        $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Type}         = $adj->{AdjustmentType};
+                        $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Description}  = $adj->{AdjustmentType};
+                        $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{Value}        = $adj->{AdjustmentAmount}->{CurrencyAmount} ;
+                        $financialExpenseEvents->{$feg_id}->{$adj->{PostedDate}}->{$adj->{AdjustmentType}}->{CurrencyCode} = $cc ;
+                    }
                 }
             }
         }
@@ -1086,13 +1129,17 @@ die if $options{dumper} ;
 
             $feg->{Id} = $localFeg->{id} ;
 
-            if( $localFeg->{processing_status} eq "Closed" )
+            # skip if closed (and we're not forcing)
+            if( not exists $options{force} and
+                $localFeg->{processing_status} eq "Closed" )
             {
                 print "Skipping existing Closed feg $feg_id\n" if $options{verbose} ;
                 next ;
             }
 
-            if( $localFeg->{total} == $feg->{OriginalTotal}->{CurrencyAmount} and
+            # Skip if it hasn't changed
+            if( not exists $options{force} and
+                $localFeg->{total} == $feg->{OriginalTotal}->{CurrencyAmount} and
                 $localFeg->{processing_status} eq $feg->{ProcessingStatus} )
             {
                 print "Skipping feg $feg_id as status and value haven't changed\n" if $options{verbose} ;
