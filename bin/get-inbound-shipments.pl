@@ -205,6 +205,8 @@ while(1)
 print Dumper(\@shipments)    if $options{dumper} ;
 print Dumper($shipmentItems) if $options{dumper} ;
 
+# begin transaction
+$mkpDB->{AutoCommit} = 0 ;
 foreach my $s (@shipments)
 {
     #
@@ -293,6 +295,8 @@ foreach my $s (@shipments)
         }
     }
 }
+$mkpDB->commit() ;
+$mkpDB->disconnect() ;
 
 sub usage_and_die
 {

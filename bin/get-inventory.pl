@@ -175,6 +175,8 @@ while(1)
 
 print Dumper($inventoryItems)    if $options{dumper} ;
 
+# start tranaction
+$mkpDB->{AutoCommit} = 0 ;
 foreach my $sku (keys %{$inventoryItems})
 {
     my $timer = MKPTimer->new("Insert SKU $sku", *STDOUT, $options{timing}, 1) ;
@@ -266,6 +268,8 @@ foreach my $sku (keys %{$inventoryItems})
         }
     }
 }
+$mkpDB->commit() ;
+$mkpDB->disconnect() ;
 
 sub usage_and_die
 {

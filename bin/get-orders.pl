@@ -233,6 +233,10 @@ if( 0 )
 {
 
     #
+    # Start Tranactions
+    $mkpDB->{AutoCommit} = 0 ;
+
+    #
     # Insert or Update order
     print "Inserting/Updating Order $o->{AmazonOrderId}\n" if $options{verbose} ;
     my $localOrder ;
@@ -318,6 +322,8 @@ if( 0 )
             }
         }
     }
+    $mkpDB->commit() ;
+    $mkpDB->disconnect() ;
 } # if 0
 }
 

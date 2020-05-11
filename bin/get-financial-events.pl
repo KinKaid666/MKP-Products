@@ -4,6 +4,7 @@
 # TODO: CouponPaymentEventList
 # TODO: ExportCharge (NbqSPgM6QXaVfU83A2td7tqqF6lC5n2TPmvl)
 # TODO: Null SKU (kE60muWzqSBGaKw7o5gttDs875bHB4ENTTII6fpVorw) 112-8250285-7601038
+# TODO: DB Transactions
 use strict;
 
 use Try::Tiny ;
@@ -284,26 +285,14 @@ $mws->{debug} = 1 if $options{verbose} ;
 
 if( defined $end )
 {
-    try
-    {
-        $groupReq = $mws->ListFinancialEventGroups(FinancialEventGroupStartedAfter  => $start,
-                                                   FinancialEventGroupStartedBefore => $end) ;
-    }
-    catch
-    {
-        print "Caught exception " . Dumper($_) . "\n" ;
-    } ;
+    $groupReq = $mws->safe_api_call("ListFinancialEventGroups",
+                                     {FinancialEventGroupStartedAfter  => $start,
+                                      FinancialEventGroupStartedBefore => $end}) ;
 }
 else
 {
-    try
-    {
-        $groupReq = $mws->ListFinancialEventGroups(FinancialEventGroupStartedAfter  => $start) ;
-    }
-    catch
-    {
-        print "Caught exception " . Dumper($_) . "\n" ;
-    } ;
+    $groupReq = $mws->safe_api_call("ListFinancialEventGroups",
+                            {FinancialEventGroupStartedAfter  => $start}) ;
 }
 
 print "groupReq = " . Dumper($groupReq) . "\n" if $options{dumper} ;
@@ -319,21 +308,15 @@ while(1)
     my $timer = MKPTimer->new("MWS Pull", *STDOUT, $options{timing}, 1) ;
     foreach my $fGroup (@{&force_array($groupReq->{FinancialEventGroupList}->{FinancialEventGroup})})
     {
+        print "fGroup = " . Dumper($fGroup) . "\n" if $options{dumper} ;
         # skip the ones we don't want to reload
         next if( defined $reloads and $reloads !~ /$fGroup->{FinancialEventGroupId}/ ) ;
         $fegs->{$fGroup->{FinancialEventGroupId}} = $fGroup ;
 
         my $feTokens = 0 ;
         my $req ;
-        try
-        {
-            $req = $mws->ListFinancialEvents(FinancialEventGroupId => $fGroup->{FinancialEventGroupId}) ;
-        }
-        catch
-        {
-            print "Caught exception " . Dumper($_) . "\n" ;
-        } ;
-
+        $req = $mws->safe_api_call("ListFinancialEvents",
+                    {FinancialEventGroupId => $fGroup->{FinancialEventGroupId}}) ;
         while(1)
         {
             print "[$gTokens] FinancialEventGroupId = $fGroup->{FinancialEventGroupId} [$feTokens]\n" if $options{verbose} ;
@@ -384,30 +367,18 @@ while(1)
             }
 
             last if( not defined $req->{NextToken} ) ;
-            try
-            {
-                sleep(3) ;
-                $req = $mws->ListFinancialEventsByNextToken(NextToken => $req->{NextToken}) ;
-            }
-            catch
-            {
-                print "Caught exception " . Dumper($_) . "\n" ;
-            };
+            sleep(3) ;
+            $req = $mws->safe_api_call("ListFinancialEventsByNextToken",
+                                           {NextToken => $req->{NextToken}}) ;
             $feTokens++ ;
         }
     }
 
     $gTokens++ ;
     last if( not defined $groupReq->{NextToken} ) ;
-    try
-    {
-        sleep(3) ;
-        $groupReq = $mws->ListFinancialEventGroupsByNextToken(NextToken => $groupReq->{NextToken}) ;
-    }
-    catch
-    {
-        print "Caught exception " . Dumper($_) . "\n" ;
-    };
+    sleep(3) ;
+    $groupReq = $mws->safe_api_call("ListFinancialEventGroupsByNextToken",
+                                    {NextToken => $groupReq->{NextToken}}) ;
 }
 
 print "MWS Response = " . Dumper($fegs) . "\n" if $options{dumper} ;
@@ -1112,7 +1083,9 @@ die if $options{dumper} ;
 {
     my $timer = MKPTimer->new("Load", *STDOUT, $options{timing}, 1) ;
 
-
+    #
+    # Do the following in a transaction
+    $mkpDB->{AutoCommit} = 0 ;
     foreach my $feg_id (keys %$financialEventGroups)
     {
         my $timer = MKPTimer->new("\tLoading financial_event_group $feg_id", *STDOUT, $options{timing}, 2) ;
@@ -1280,6 +1253,7 @@ die if $options{dumper} ;
         }
     }
 
+    $mkpDB->commit() ;
     $mkpDB->disconnect() ;
 }
 

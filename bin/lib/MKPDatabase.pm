@@ -28,7 +28,7 @@ our $mkpDB ;
         $mkpDB = DBI->connect("DBI:mysql:database=$dbname;host=$host",
                            $user,
                            $pass,
-                           {'PrintError' => 1});
+                           {'RaiseError' => 1 });
 
     }
 }
