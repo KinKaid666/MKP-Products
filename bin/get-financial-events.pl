@@ -27,6 +27,7 @@ use MKPFormatter ;
 use MKPTimer ;
 use MKPDatabase ;
 use MKPMWS ;
+use MKPSKU ;
 
 # SQL Statements
 # mysql> desc financial_event_groups ;
@@ -1198,6 +1199,9 @@ die if $options{dumper} ;
                 foreach my $sku (keys %{$financialShipmentEvents->{$feg_id}->{$order}->{$type}})
                 {
                     print "Load FSE $order $type $sku\n" if $options{verbose} > 0 ;
+
+                    &validate_or_insert_sku($sku) ;
+
                     #
                     # insert the item
                     my $ii_sth = $mkpDB->prepare(${\INSERT_FSE_STATEMENT}) ;

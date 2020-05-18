@@ -209,6 +209,7 @@ foreach my $sku (keys %{$inventoryItems})
     }
     else
     {
+        &validate_or_insert_sku($sku) ;
         #
         # Skip new SKUs with no inventory en route or on hand
         next if $inventoryItems->{$sku}->{InStockSupplyQuantity} == 0 and $inventoryItems->{$sku}->{TotalSupplyQuantity} == 0 ;

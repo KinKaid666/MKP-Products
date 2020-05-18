@@ -19,6 +19,7 @@ use MKPFormatter ;
 use MKPTimer ;
 use MKPDatabase ;
 use MKPMWS ;
+use MKPSKU ;
 
 # mysql> desc inbound_shipments ;
 # +-------------------+------------------+------+-----+-------------------+-----------------------------+
@@ -255,6 +256,8 @@ foreach my $s (@shipments)
     # Load items
     foreach my $item (@{$shipmentItems->{$s->{ShipmentId}}})
     {
+        &validate_or_insert_sku($item->{SellerSKU}) ;
+
         print "Inserting/Updating Inbound Shipment Item $item->{SellerSKU}\n" if $options{verbose} ;
         my $s_sth = $mkpDB->prepare(${\SELECT_INBOUND_SHIPMENT_ITEMS}) ;
         $s_sth->execute($localShipment->{id}, $item->{SellerSKU}) or die "'" . $s_sth->errstr . "'\n" ;
