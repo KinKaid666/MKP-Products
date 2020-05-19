@@ -72,7 +72,7 @@ sub validate_or_insert_sku
     if( $s_stmt->rows == 0 )
     {
         my $i_stmt = $mkpDB->prepare(${\SKUS_INSERT_STATEMENT}) ;
-        if( not $i_stmt->execute( $sku->{sku}, $vendor_name, $title, $description ) )
+        if( not $i_stmt->execute( $sku, $vendor_name, $title, $description ) )
         {
             print STDERR "Failed to insert " . $sku->{sku} . ", with error: " . $i_stmt->errstr . "\n" ;
         }
