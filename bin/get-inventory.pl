@@ -19,6 +19,7 @@ use MKPFormatter ;
 use MKPTimer ;
 use MKPDatabase ;
 use MKPMWS ;
+use MKPSKU ;
 
 # mysql> desc realtime_inventory ;
 # +------------------+------------------+------+-----+-------------------+-----------------------------+
