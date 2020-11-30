@@ -56,6 +56,12 @@ if( defined $options{frequency} and defined $options{datetime} )
     &usage_and_die(1) ;
 }
 
+if( $options{type} eq "Salary" and $options{value} < -4000 )
+{
+    print STDERR "Salary cannot exceed \$4k\n" ;
+    exit(1) ;
+}
+
 my @expenses ;
 
 #
