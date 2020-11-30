@@ -3,6 +3,14 @@ use Email::Valid ;
 use DBI ;
 use Getopt::Long ;
 
+# AMZL Specific Libraries
+use File::Basename qw(dirname basename) ;
+use Cwd qw(abs_path) ;
+use lib &dirname(&abs_path($0)) . "/lib" ;
+use MKPTimer ;
+use MKPDatabase ;
+use MKPUser ;
+
 use strict ;
 
 my %options ;
@@ -60,9 +68,7 @@ unless (Email::Valid->address($email)) {
     die "Please enter a valid e-mail address." ;
 }
 
-# check the db first and be sure the username isn't already registered
-my $dbh = DBI->connect( "dbi:mysql:usertable", "usertable", "2018userLogin") or die "Can't connect to db: $DBI::errstr" ;
-my $sth = $dbh->prepare("select * from users where username = ?") or die $DBI::errstr ;
+my $sth = $userdbh->prepare("select * from users where username = ?") or die $DBI::errstr ;
 $sth->execute($username) or &dbdie ;
 if (my $rec = $sth->fetchrow_hashref) {
     die "The username `$username' is already in use. Please choose another." ;
@@ -72,7 +78,7 @@ if (my $rec = $sth->fetchrow_hashref) {
 # version in the database.
 my $encpass = &encrypt($password) ;
 
-$sth = $dbh->prepare("insert into users (username, password, status, realname, email) values(?, ?, ?, ?, ?)")  or die $DBI::errstr ;
+$sth = $userdbh->prepare("insert into users (username, password, status, realname, email) values(?, ?, ?, ?, ?)")  or die $DBI::errstr ;
 $sth->execute($username, $encpass, "CURRENT", $realname, $email)  or die $DBI::errstr ;
 
 sub encrypt {
